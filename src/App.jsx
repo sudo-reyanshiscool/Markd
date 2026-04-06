@@ -1528,17 +1528,12 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
         html, body { height: 100%; background: var(--bg); }
 
         .markd-app {
-          width: 100%;
-          min-height: 100vh;
-          min-height: 100dvh;
-          background: var(--bg);
-          color: var(--text);
-          font-family: 'DM Mono', monospace;
-          font-size: 13px;
-          position: relative;
-          display: flex;
-          flex-direction: column;
-        }
+  width: 100%;
+  min-height: 100dvh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
 
         /* ── Top Bar ── */
         .top-bar {

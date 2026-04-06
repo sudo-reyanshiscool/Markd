@@ -282,7 +282,7 @@ const NAV_ITEMS = [
 // ═══════════════════════════════════════════
 // Main App
 // ═══════════════════════════════════════════
-export default function App() {
+export default function Markd() {
   const [page, setPage] = useState("home");
   const [modal, setModal] = useState(null);
   const [subjects, setSubjects] = useState(DEFAULT_SUBJECTS);
@@ -319,7 +319,7 @@ export default function App() {
   const [teamsUser, setTeamsUser] = useState(null);
   const [syncLog, setSyncLog] = useState([]);
   const [autoSync, setAutoSync] = useState(true);
-  const API_URL = "http://localhost:5173";
+  const API_URL = "http://localhost:3001";
 
   // ─── Subject helpers ───
   const sub = (id) => subjects.find(s => s.id === id);
@@ -1525,17 +1525,19 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
         }
 
         * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { height: 100%; background: var(--bg); }
 
         .markd-app {
-          max-width: 430px;
-          margin: 0 auto;
+          width: 100%;
           min-height: 100vh;
+          min-height: 100dvh;
           background: var(--bg);
           color: var(--text);
           font-family: 'DM Mono', monospace;
           font-size: 13px;
           position: relative;
-          overflow-x: hidden;
+          display: flex;
+          flex-direction: column;
         }
 
         /* ── Top Bar ── */
@@ -1546,7 +1548,8 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 14px 18px;
+          padding: 14px 24px;
+          padding-top: calc(env(safe-area-inset-top, 0px) + 14px);
           background: var(--bg);
           border-bottom: 1px solid var(--border);
         }
@@ -1582,16 +1585,64 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
           font-weight: 700;
           font-size: 13px;
           color: var(--accent);
+          position: relative;
         }
 
-        /* ── Bottom Nav ── */
+        /* ── App body (sidebar + content) ── */
+        .app-body {
+          display: flex;
+          flex: 1;
+          overflow: hidden;
+        }
+
+        /* ── Sidebar (desktop only) ── */
+        .sidebar {
+          display: none;
+        }
+        @media (min-width: 768px) {
+          .sidebar {
+            display: flex;
+            flex-direction: column;
+            width: 200px;
+            flex-shrink: 0;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            padding: 16px 0;
+            gap: 2px;
+            overflow-y: auto;
+          }
+          .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-family: 'DM Mono', monospace;
+            font-size: 12px;
+            cursor: pointer;
+            transition: color 0.15s, background 0.15s;
+            text-align: left;
+          }
+          .sidebar-item:hover { color: var(--text); background: var(--surface2); }
+          .sidebar-item.active { color: var(--accent); background: rgba(124,106,247,0.08); }
+        }
+
+        /* ── Page scroll area ── */
+        .page-scroll {
+          flex: 1;
+          overflow-y: auto;
+          overflow-x: hidden;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        /* ── Bottom Nav (mobile only) ── */
         .bottom-nav {
           position: fixed;
           bottom: 0;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 100%;
-          max-width: 430px;
+          left: 0;
+          right: 0;
           z-index: 100;
           background: var(--surface);
           border-top: 1px solid var(--border);
@@ -1599,16 +1650,19 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
           overflow-x: auto;
           scrollbar-width: none;
           -ms-overflow-style: none;
-          padding: 6px 4px 10px;
+          padding: 6px 4px calc(env(safe-area-inset-bottom, 0px) + 10px);
         }
         .bottom-nav::-webkit-scrollbar { display: none; }
+        @media (min-width: 768px) {
+          .bottom-nav { display: none; }
+        }
         .nav-item {
-          flex: 0 0 auto;
+          flex: 1 0 auto;
           display: flex;
           flex-direction: column;
           align-items: center;
           gap: 3px;
-          padding: 6px 12px;
+          padding: 6px 8px;
           background: none;
           border: none;
           color: var(--muted);
@@ -1624,8 +1678,8 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
         /* ── FAB ── */
         .fab {
           position: fixed;
-          bottom: 72px;
-          right: calc(50% - 195px);
+          bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+          right: 24px;
           width: 50px;
           height: 50px;
           border-radius: 50%;
@@ -1641,18 +1695,29 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
           transition: transform 0.2s, box-shadow 0.2s;
         }
         .fab:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(124,106,247,0.6); }
-        @media (max-width: 460px) {
-          .fab { right: 18px; }
+        @media (min-width: 768px) {
+          .fab { bottom: 32px; right: 32px; }
         }
 
         /* ── Page ── */
-        .page { padding: 16px 18px 100px; }
+        .page {
+          padding: 16px 18px calc(env(safe-area-inset-bottom, 0px) + 100px);
+          max-width: 960px;
+          margin: 0 auto;
+          width: 100%;
+        }
+        @media (min-width: 768px) {
+          .page { padding: 28px 36px 60px; }
+        }
         .page-title {
           font-family: 'Syne', sans-serif;
           font-weight: 700;
           font-size: 24px;
           margin-bottom: 18px;
           color: var(--text);
+        }
+        @media (min-width: 768px) {
+          .page-title { font-size: 28px; margin-bottom: 24px; }
         }
 
         /* ── Stat row ── */
@@ -1775,6 +1840,8 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
 
         /* ── Subject mini grid ── */
         .subjects-mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+        @media (min-width: 768px) { .subjects-mini-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; } }
+        @media (min-width: 1024px) { .subjects-mini-grid { grid-template-columns: repeat(4, 1fr); } }
         .subject-mini {
           background: var(--surface);
           border: 1px solid var(--border);
@@ -2104,7 +2171,7 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .modal-sheet {
           width: 100%;
-          max-width: 430px;
+          max-width: 600px;
           background: var(--surface);
           border-radius: 20px 20px 0 0;
           padding: 12px 20px 28px;
@@ -2187,7 +2254,7 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
         /* ── AI Panel (slide-up sheet) ── */
         .ai-sheet {
           width: 100%;
-          max-width: 430px;
+          max-width: 600px;
           height: 85vh;
           background: var(--surface);
           border-radius: 20px 20px 0 0;
@@ -2350,7 +2417,7 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
 
         /* ── Settings Panel ── */
         .settings-sheet {
-          width: 100%; max-width: 430px;
+          width: 100%; max-width: 600px;
           max-height: 85vh; overflow-y: auto;
           background: var(--surface);
           border-radius: 20px 20px 0 0;
@@ -2480,15 +2547,30 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
           </div>
         </div>
 
-        {/* Page content */}
-        {pages[page]()}
+        {/* App body: sidebar + content */}
+        <div className="app-body">
+          {/* Sidebar (desktop only, hidden on mobile via CSS) */}
+          <nav className="sidebar">
+            {NAV_ITEMS.map(n => (
+              <button key={n.key} className={`sidebar-item ${page===n.key?"active":""}`} onClick={()=>setPage(n.key)}>
+                <Icon d={n.icon} size={18}/>
+                <span>{n.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* Scrollable content */}
+          <div className="page-scroll">
+            {pages[page]()}
+          </div>
+        </div>
 
         {/* FAB */}
         <button className="fab" onClick={fabAction}>
           <Icon d={icons.plus} size={26} color="white"/>
         </button>
 
-        {/* Bottom nav */}
+        {/* Bottom nav (mobile only, hidden on desktop via CSS) */}
         <nav className="bottom-nav">
           {NAV_ITEMS.map(n => (
             <button key={n.key} className={`nav-item ${page===n.key?"active":""}`} onClick={()=>setPage(n.key)}>

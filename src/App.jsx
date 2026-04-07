@@ -607,6 +607,7 @@ export default function Markd() {
   const [subjectTab, setSubjectTab] = useState("browse");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState("general");
+  const [form, setForm] = useState({});
   const [teamsConnected, setTeamsConnected] = useState(false);
   const [teamsSyncing, setTeamsSyncing] = useState(false);
   const [teamsLastSync, setTeamsLastSync] = useState(null);
@@ -787,7 +788,6 @@ export default function Markd() {
   const subjectTaskProgress = (sId) => { const st=tasks.filter(t=>t.subjectId===sId); if(!st.length) return null; return { done:st.filter(t=>t.done).length, total:st.length }; };
 
   // ─── Modal form state ───
-  const [form, setForm] = useState({});
   const updateForm = (k,v) => setForm(f=>({...f,[k]:v}));
 
   const openModal = (type) => {

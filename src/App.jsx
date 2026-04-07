@@ -1,39 +1,21 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 const API_BASE_URL =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "";
+const CLOUD_CONFIG_ERROR =
+  "Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable cloud accounts and syncing.";
 
-// ─── Auth helpers ───
-const hashPassword = async (password, salt) => {
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name:"PBKDF2", salt:enc.encode(salt), iterations:100000, hash:"SHA-256" }, keyMaterial, 256);
-  return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2,"0")).join("");
-};
-
-const getUsers = () => {
+// ─── Legacy localStorage helpers kept for migration ───
+const getLegacyUsers = () => {
   if (typeof window === "undefined") return {};
   try { return JSON.parse(localStorage.getItem("markd_users") || "{}"); } catch { return {}; }
 };
-const saveUsers = (u) => {
-  if (typeof window === "undefined") return;
-  localStorage.setItem("markd_users", JSON.stringify(u));
+const getLegacyUserByEmail = (email) => {
+  const users = getLegacyUsers();
+  return users[email.toLowerCase().trim()] || null;
 };
-const getSession = () => {
-  if (typeof window === "undefined") return null;
-  try { return JSON.parse(localStorage.getItem("markd_session") || "null"); } catch { return null; }
-};
-const saveSession = (u) => {
-  if (typeof window === "undefined") return;
-  localStorage.setItem("markd_session", JSON.stringify(u));
-};
-const clearSession = () => {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem("markd_session");
-};
-
-// ─── Per-user localStorage helpers ───
-const readUserStorage = (userId, key, defaultValue) => {
+const readLegacyUserStorage = (userId, key, defaultValue) => {
   if (typeof window === "undefined" || !userId) return defaultValue;
   try {
     const stored = localStorage.getItem(`markd_${userId}_${key}`);
@@ -41,11 +23,6 @@ const readUserStorage = (userId, key, defaultValue) => {
   } catch {
     return defaultValue;
   }
-};
-
-const writeUserStorage = (userId, key, value) => {
-  if (typeof window === "undefined" || !userId) return;
-  try { localStorage.setItem(`markd_${userId}_${key}`, JSON.stringify(value)); } catch {}
 };
 
 const normaliseCalendarUrl = (value) => value.trim().replace(/^webcal:\/\//i, "https://");
@@ -238,6 +215,226 @@ const EMPTY_GOALS = [];
 const EMPTY_PORTFOLIO = [];
 const EMPTY_ACTIVITIES = [];
 
+const createEmptyAppData = () => ({
+  subjects: [],
+  tasks: [],
+  deadlines: [],
+  exams: [],
+  papers: [],
+  goals: [],
+  portfolio: [],
+  activities: [],
+  deleted: [],
+  theme: "dark",
+  outlookCalendarUrl: "",
+  calendarLastSync: null,
+});
+
+const normaliseAppData = (appData = {}) => {
+  const fallback = createEmptyAppData();
+  return {
+    subjects: Array.isArray(appData.subjects) ? appData.subjects : fallback.subjects,
+    tasks: Array.isArray(appData.tasks) ? appData.tasks : fallback.tasks,
+    deadlines: Array.isArray(appData.deadlines) ? appData.deadlines : fallback.deadlines,
+    exams: Array.isArray(appData.exams) ? appData.exams : fallback.exams,
+    papers: Array.isArray(appData.papers) ? appData.papers : fallback.papers,
+    goals: Array.isArray(appData.goals) ? appData.goals : fallback.goals,
+    portfolio: Array.isArray(appData.portfolio) ? appData.portfolio : fallback.portfolio,
+    activities: Array.isArray(appData.activities) ? appData.activities : fallback.activities,
+    deleted: Array.isArray(appData.deleted) ? appData.deleted : fallback.deleted,
+    theme: appData.theme === "light" ? "light" : "dark",
+    outlookCalendarUrl: typeof appData.outlookCalendarUrl === "string" ? appData.outlookCalendarUrl : "",
+    calendarLastSync: typeof appData.calendarLastSync === "string" || appData.calendarLastSync === null
+      ? appData.calendarLastSync
+      : null,
+  };
+};
+
+const isEmptyAppData = (appData = {}) => {
+  const data = normaliseAppData(appData);
+  return (
+    data.subjects.length === 0 &&
+    data.tasks.length === 0 &&
+    data.deadlines.length === 0 &&
+    data.exams.length === 0 &&
+    data.papers.length === 0 &&
+    data.goals.length === 0 &&
+    data.portfolio.length === 0 &&
+    data.activities.length === 0 &&
+    data.deleted.length === 0 &&
+    data.theme === "dark" &&
+    data.outlookCalendarUrl === "" &&
+    data.calendarLastSync === null
+  );
+};
+
+const readLegacyAppData = (legacyUserId) => ({
+  subjects: readLegacyUserStorage(legacyUserId, "subjects", EMPTY_SUBJECTS),
+  tasks: readLegacyUserStorage(legacyUserId, "tasks", EMPTY_TASKS),
+  deadlines: readLegacyUserStorage(legacyUserId, "deadlines", EMPTY_DEADLINES),
+  exams: readLegacyUserStorage(legacyUserId, "exams", EMPTY_EXAMS),
+  papers: readLegacyUserStorage(legacyUserId, "papers", EMPTY_PAPERS),
+  goals: readLegacyUserStorage(legacyUserId, "goals", EMPTY_GOALS),
+  portfolio: readLegacyUserStorage(legacyUserId, "portfolio", EMPTY_PORTFOLIO),
+  activities: readLegacyUserStorage(legacyUserId, "activities", EMPTY_ACTIVITIES),
+  deleted: readLegacyUserStorage(legacyUserId, "deleted", []),
+  theme: readLegacyUserStorage(legacyUserId, "theme", "dark"),
+  outlookCalendarUrl: readLegacyUserStorage(legacyUserId, "outlook_calendar_url", ""),
+  calendarLastSync: readLegacyUserStorage(legacyUserId, "outlook_calendar_last_sync", null),
+});
+
+const getLegacyBundleForEmail = (email) => {
+  if (!email) return null;
+  const legacyUser = getLegacyUserByEmail(email);
+  if (!legacyUser) return null;
+  return {
+    profile: {
+      email: legacyUser.email || email.toLowerCase().trim(),
+      name: legacyUser.name || "",
+      school: legacyUser.school || "",
+    },
+    appData: normaliseAppData(readLegacyAppData(legacyUser.userId)),
+  };
+};
+
+const DEMO_ADMIN_EMAIL = "admin@demo.markd";
+const DEMO_ADMIN_PASSWORD = "markddemo";
+const DEMO_ADMIN_USER_ID = "demo-admin";
+const DEMO_ADMIN_PROFILE = {
+  userId: DEMO_ADMIN_USER_ID,
+  email: DEMO_ADMIN_EMAIL,
+  name: "Markd Admin",
+  school: "Markd Demo Academy",
+};
+
+const createDemoAppData = () => {
+  const mathsId = "demo-sub-maths";
+  const biologyId = "demo-sub-bio";
+  const englishId = "demo-sub-eng";
+  const historyId = "demo-sub-history";
+
+  return normaliseAppData({
+    subjects: [
+      { id: mathsId, name: "Mathematics", board: "Edexcel", target: "8", colour: PALETTE[0] },
+      { id: biologyId, name: "Biology", board: "AQA", target: "9", colour: PALETTE[2] },
+      { id: englishId, name: "English Literature", board: "AQA", target: "7", colour: PALETTE[6] },
+      { id: historyId, name: "History", board: "Edexcel", target: "8", colour: PALETTE[5] },
+    ],
+    tasks: [
+      { id: "demo-task-1", subjectId: mathsId, text: "Finish trigonometry worksheet", done: false },
+      { id: "demo-task-2", subjectId: biologyId, text: "Revise cell transport flashcards", done: true },
+      { id: "demo-task-3", subjectId: englishId, text: "Plan Macbeth essay opening", done: false },
+      { id: "demo-task-4", subjectId: historyId, text: "Annotate Cold War timeline", done: true },
+    ],
+    deadlines: [
+      { id: "demo-deadline-1", subjectId: mathsId, title: "Algebra assessment corrections", date: "2026-04-10" },
+      { id: "demo-deadline-2", subjectId: englishId, title: "Macbeth essay draft", date: "2026-04-14" },
+      { id: "demo-deadline-3", subjectId: historyId, title: "Source analysis homework", date: "2026-04-18" },
+    ],
+    exams: [
+      { id: "demo-exam-1", subjectId: biologyId, name: "Biology Mock Paper 2", board: "AQA", date: "2026-04-16" },
+      { id: "demo-exam-2", subjectId: mathsId, name: "Maths Calculator Mock", board: "Edexcel", date: "2026-04-22" },
+      { id: "demo-exam-3", subjectId: historyId, name: "History Thematic Paper", board: "Edexcel", date: "2026-05-03" },
+    ],
+    papers: [
+      { id: "demo-paper-1", subjectId: mathsId, title: "2025 November Mock", year: "2025", paper: "1", scored: 68, total: 80, file: null },
+      { id: "demo-paper-2", subjectId: biologyId, title: "Paper 1 Practice", year: "2026", paper: "1", scored: 74, total: 90, file: null },
+      { id: "demo-paper-3", subjectId: englishId, title: "Poetry comparison test", year: "2026", paper: "", scored: 24, total: 30, file: null },
+    ],
+    goals: [
+      { id: "demo-goal-1", text: "Raise Maths average above 85%", horizon: "3 months", subjectId: mathsId, done: false },
+      { id: "demo-goal-2", text: "Finish biology flashcards for Paper 2", horizon: "6 months", subjectId: biologyId, done: false },
+      { id: "demo-goal-3", text: "Build a stronger sixth form portfolio", horizon: "12 months", subjectId: null, done: true },
+    ],
+    portfolio: [
+      { id: "demo-portfolio-1", subjectId: biologyId, title: "Science Fair Cell Model", type: "Project", desc: "Built an interactive model explaining osmosis and diffusion for Year 9 visitors.", tags: ["biology", "presentation", "stem"] },
+      { id: "demo-portfolio-2", subjectId: historyId, title: "Debate Competition Finalist", type: "Achievement", desc: "Reached the final with a speech on the impact of propaganda in wartime Europe.", tags: ["history", "speaking", "competition"] },
+    ],
+    activities: [
+      {
+        id: "demo-activity-1",
+        name: "Debate Society",
+        role: "Vice Captain",
+        organisation: "Markd Demo Academy",
+        desc: "Lead weekly drills, prep novice speakers, and organise inter-school practice rounds.",
+        colour: PALETTE[7],
+        hoursPerWeek: 3,
+        events: [{ title: "Regional Debate Qualifier", date: "2026-04-20" }],
+        achievements: ["School finalist speaker", "Hosted one novice workshop"],
+        tags: ["leadership", "public speaking"],
+      },
+      {
+        id: "demo-activity-2",
+        name: "STEM Club",
+        role: "Project Lead",
+        organisation: "Community Makers Lab",
+        desc: "Coordinate a small group building low-cost revision tools for younger students.",
+        colour: PALETTE[2],
+        hoursPerWeek: 2,
+        events: [{ title: "Prototype showcase", date: "2026-04-27" }],
+        achievements: ["Built revision quiz prototype"],
+        tags: ["stem", "teamwork"],
+      },
+    ],
+    deleted: [],
+    theme: "dark",
+    outlookCalendarUrl: "",
+    calendarLastSync: null,
+  });
+};
+
+const buildSessionUser = (authUser, profile) => ({
+  userId: authUser.id,
+  email: (profile?.email || authUser.email || "").toLowerCase(),
+  name: profile?.name || authUser.user_metadata?.name || authUser.email?.split("@")[0] || "Student",
+  school: profile?.school || authUser.user_metadata?.school || "",
+});
+
+const upsertProfile = async ({ id, email, name, school, appData }) => {
+  if (!supabase) throw new Error(CLOUD_CONFIG_ERROR);
+
+  const payload = {
+    id,
+    email: email.toLowerCase(),
+    name: name || "",
+    school: school || "",
+  };
+
+  if (appData !== undefined) {
+    payload.app_data = normaliseAppData(appData);
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .upsert(payload, { onConflict: "id" })
+    .select("id, email, name, school, app_data")
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+const ensureProfile = async (authUser, fallback = {}) => {
+  if (!supabase) throw new Error(CLOUD_CONFIG_ERROR);
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, email, name, school, app_data")
+    .eq("id", authUser.id)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (data) return data;
+
+  return upsertProfile({
+    id: authUser.id,
+    email: fallback.email || authUser.email || "",
+    name: fallback.name || authUser.user_metadata?.name || "",
+    school: fallback.school || authUser.user_metadata?.school || "",
+    appData: createEmptyAppData(),
+  });
+};
+
 const PAPER_LINKS = [
   { name:"AQA", url:"https://www.aqa.org.uk/find-past-papers-and-mark-schemes", desc:"Official AQA past papers and mark schemes" },
   { name:"Edexcel", url:"https://qualifications.pearson.com/en/support/support-topics/exams/past-papers.html", desc:"Pearson Edexcel past papers" },
@@ -299,7 +496,7 @@ const TYPE_LABELS = {
 // ═══════════════════════════════════════════
 // Auth Screen
 // ═══════════════════════════════════════════
-function AuthScreen({ onAuth }) {
+function AuthScreen({ onAuth, onDemoAuth, cloudError = "" }) {
   const [screen, setScreen] = useState("welcome"); // welcome | login | signup
   const [form, setForm] = useState({ name:"", school:"", email:"", password:"", confirm:"" });
   const [error, setError] = useState("");
@@ -307,41 +504,82 @@ function AuthScreen({ onAuth }) {
   const [showPass, setShowPass] = useState(false);
 
   const upd = (k, v) => { setForm(f => ({...f, [k]:v})); setError(""); };
+  const openDemoAdmin = () => {
+    setError("");
+    onDemoAuth?.();
+  };
 
   const handleSignup = async () => {
+    if (!isSupabaseConfigured || !supabase) return setError(cloudError || CLOUD_CONFIG_ERROR);
     if (!form.name.trim()) return setError("Please enter your name.");
     if (!form.school.trim()) return setError("Please enter your school name.");
     if (!form.email.trim() || !form.email.includes("@")) return setError("Please enter a valid email.");
     if (form.password.length < 6) return setError("Password must be at least 6 characters.");
     if (form.password !== form.confirm) return setError("Passwords don't match.");
     setLoading(true);
-    const users = getUsers();
-    const emailKey = form.email.toLowerCase().trim();
-    if (users[emailKey]) { setError("An account with this email already exists."); setLoading(false); return; }
-    const salt = crypto.randomUUID();
-    const hash = await hashPassword(form.password, salt);
-    const userId = "u_" + Date.now();
-    users[emailKey] = { userId, name: form.name.trim(), school: form.school.trim(), email: emailKey, hash, salt, createdAt: new Date().toISOString() };
-    saveUsers(users);
-    const session = { userId, name: form.name.trim(), school: form.school.trim(), email: emailKey };
-    saveSession(session);
-    setLoading(false);
-    onAuth(session);
+    try {
+      const email = form.email.toLowerCase().trim();
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password: form.password,
+        options: {
+          data: {
+            name: form.name.trim(),
+            school: form.school.trim(),
+          },
+        },
+      });
+
+      if (signUpError) throw signUpError;
+      if (!data.user) throw new Error("Signup failed. Please try again.");
+
+      if (!data.session) {
+        setError("Check your email to confirm your account, then sign in.");
+        setScreen("login");
+        return;
+      }
+
+      const profile = await upsertProfile({
+        id: data.user.id,
+        email,
+        name: form.name.trim(),
+        school: form.school.trim(),
+        appData: createEmptyAppData(),
+      });
+
+      onAuth({ authUser: data.user, profile });
+    } catch (authError) {
+      setError(authError instanceof Error ? authError.message : "Could not create your account.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogin = async () => {
     if (!form.email.trim() || !form.password) return setError("Please fill in all fields.");
+    const email = form.email.toLowerCase().trim();
+    if (email === DEMO_ADMIN_EMAIL && form.password === DEMO_ADMIN_PASSWORD) {
+      openDemoAdmin();
+      return;
+    }
+    if (!isSupabaseConfigured || !supabase) return setError(cloudError || CLOUD_CONFIG_ERROR);
     setLoading(true);
-    const users = getUsers();
-    const emailKey = form.email.toLowerCase().trim();
-    const user = users[emailKey];
-    if (!user) { setError("No account found with this email."); setLoading(false); return; }
-    const hash = await hashPassword(form.password, user.salt);
-    if (hash !== user.hash) { setError("Incorrect password."); setLoading(false); return; }
-    const session = { userId: user.userId, name: user.name, school: user.school || "", email: emailKey };
-    saveSession(session);
-    setLoading(false);
-    onAuth(session);
+    try {
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password: form.password,
+      });
+
+      if (loginError) throw loginError;
+      if (!data.user) throw new Error("No account found with this email.");
+
+      const profile = await ensureProfile(data.user, { email });
+      onAuth({ authUser: data.user, profile });
+    } catch (authError) {
+      setError(authError instanceof Error ? authError.message : "Could not sign you in.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const initial = form.name ? form.name.trim()[0].toUpperCase() : "M";
@@ -379,6 +617,8 @@ function AuthScreen({ onAuth }) {
         .auth-link { background:none; border:none; color:#7c6af7; font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
         .auth-link:hover { opacity:0.8; }
         .auth-footer { text-align:center; font-size:11px; color:#6b6b80; }
+        .auth-demo-note { font-size:11px; color:#9d9db4; line-height:1.6; text-align:center; }
+        .auth-demo-creds { display:block; color:#e8e8f0; margin-top:4px; }
         .auth-welcome-art { display:flex; justify-content:center; gap:8px; }
         .auth-dot { width:10px; height:10px; border-radius:50%; animation:authPulse 2s infinite ease-in-out; }
         .auth-dot:nth-child(2) { animation-delay:0.3s; }
@@ -399,6 +639,11 @@ function AuthScreen({ onAuth }) {
             <div className="auth-sub" style={{marginTop:8}}>Track subjects, deadlines, exams, and goals — all in one place.</div>
           </div>
           <button className="auth-btn" onClick={() => setScreen("signup")}>Get started</button>
+          <button className="auth-btn secondary" onClick={openDemoAdmin}>Open demo admin</button>
+          <div className="auth-demo-note">
+            Demo login
+            <span className="auth-demo-creds">{DEMO_ADMIN_EMAIL} / {DEMO_ADMIN_PASSWORD}</span>
+          </div>
           <div className="auth-footer">
             Already have an account?{" "}
             <button className="auth-link" onClick={() => setScreen("login")}>Sign in</button>
@@ -413,7 +658,7 @@ function AuthScreen({ onAuth }) {
             <div className="auth-avatar">{initial}</div>
           </div>
           <div className="auth-title">Create account</div>
-          {error && <div className="auth-error">{error}</div>}
+          {(cloudError || error) && <div className="auth-error">{error || cloudError}</div>}
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             <input className="auth-input" placeholder="Your name" value={form.name} onChange={e=>upd("name",e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSignup()}/>
             <input className="auth-input" placeholder="School name" value={form.school} onChange={e=>upd("school",e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSignup()}/>
@@ -437,7 +682,7 @@ function AuthScreen({ onAuth }) {
           <div className="auth-logo">Markd<span className="auth-logo-dot"/></div>
           <div className="auth-title">Welcome back</div>
           <div className="auth-sub">Sign in to your account</div>
-          {error && <div className="auth-error">{error}</div>}
+          {(cloudError || error) && <div className="auth-error">{error || cloudError}</div>}
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             <input className="auth-input" placeholder="Email address" type="email" value={form.email} onChange={e=>upd("email",e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
             <div className="auth-input-wrap">
@@ -446,6 +691,16 @@ function AuthScreen({ onAuth }) {
             </div>
           </div>
           <button className="auth-btn" onClick={handleLogin} disabled={loading}>{loading ? "Signing in…" : "Sign in"}</button>
+          <div className="auth-divider">
+            <div className="auth-divider-line"/>
+            <div className="auth-divider-text">or</div>
+            <div className="auth-divider-line"/>
+          </div>
+          <button className="auth-btn secondary" onClick={openDemoAdmin}>Open demo admin</button>
+          <div className="auth-demo-note">
+            Use the demo credentials for a resettable showroom workspace.
+            <span className="auth-demo-creds">{DEMO_ADMIN_EMAIL} / {DEMO_ADMIN_PASSWORD}</span>
+          </div>
           <div className="auth-footer">
             Don't have an account?{" "}
             <button className="auth-link" onClick={() => { setScreen("signup"); setError(""); setForm(f=>({...f,password:""})); }}>Sign up</button>
@@ -456,12 +711,40 @@ function AuthScreen({ onAuth }) {
   );
 }
 
+function AppBootScreen({ message }) {
+  return (
+    <div className="auth-root">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { height:100%; }
+        .auth-root { min-height:100vh; min-height:100dvh; background:#0a0a0f; color:#e8e8f0; font-family:'DM Mono',monospace; display:flex; align-items:center; justify-content:center; padding:24px; }
+        .boot-card { width:100%; max-width:400px; background:#111118; border:1px solid #2a2a38; border-radius:20px; padding:32px 28px; display:flex; flex-direction:column; gap:16px; align-items:center; text-align:center; }
+        .boot-logo { font-family:'Syne',sans-serif; font-weight:800; font-size:28px; color:#e8e8f0; }
+        .boot-logo-dot { display:inline-block; width:9px; height:9px; background:#7c6af7; border-radius:50%; margin-left:3px; vertical-align:middle; position:relative; top:-2px; box-shadow:0 0 12px #7c6af7; }
+        .boot-spinner { width:28px; height:28px; border-radius:50%; border:3px solid rgba(124,106,247,0.2); border-top-color:#7c6af7; animation:bootSpin 0.9s linear infinite; }
+        .boot-message { font-size:12px; color:#6b6b80; line-height:1.6; }
+        @keyframes bootSpin { to { transform:rotate(360deg); } }
+      `}</style>
+      <div className="boot-card">
+        <div className="boot-logo">Markd<span className="boot-logo-dot"/></div>
+        <div className="boot-spinner"/>
+        <div className="boot-message">{message}</div>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════
 // Main App
 // ═══════════════════════════════════════════
 export default function Markd() {
-  const [currentUser, setCurrentUser] = useState(() => getSession());
-  const userId = currentUser?.userId || null;
+  const [authUser, setAuthUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [demoMode, setDemoMode] = useState(false);
+  const [authInitialising, setAuthInitialising] = useState(true);
+  const [cloudHydrating, setCloudHydrating] = useState(false);
+  const userId = authUser?.id || null;
 
   const [page, setPage] = useState("home");
   const [modal, setModal] = useState(null);
@@ -507,62 +790,209 @@ export default function Markd() {
   const [calendarSyncing, setCalendarSyncing] = useState(false);
   const [calendarSyncError, setCalendarSyncError] = useState("");
 
+  const resetPersistedState = () => {
+    const empty = createEmptyAppData();
+    setSubjects(empty.subjects);
+    setTasks(empty.tasks);
+    setDeadlines(empty.deadlines);
+    setExams(empty.exams);
+    setPapers(empty.papers);
+    setGoals(empty.goals);
+    setPortfolio(empty.portfolio);
+    setActivities(empty.activities);
+    setRecentlyDeleted(empty.deleted);
+    setTheme(empty.theme);
+    setOutlookCalendarUrl(empty.outlookCalendarUrl);
+    setCalendarLastSync(empty.calendarLastSync);
+    setCalendarInput("");
+    setCalendarSyncError("");
+  };
+
+  const applyPersistedState = (appData) => {
+    const next = normaliseAppData(appData);
+    setSubjects(next.subjects);
+    setTasks(next.tasks);
+    setDeadlines(next.deadlines);
+    setExams(next.exams);
+    setPapers(next.papers);
+    setGoals(next.goals);
+    setPortfolio(next.portfolio);
+    setActivities(next.activities);
+    setRecentlyDeleted(next.deleted);
+    setTheme(next.theme);
+    setOutlookCalendarUrl(next.outlookCalendarUrl);
+    setCalendarLastSync(next.calendarLastSync);
+    setCalendarInput(next.outlookCalendarUrl);
+  };
+
+  const exportPersistedState = () => normaliseAppData({
+    subjects,
+    tasks,
+    deadlines,
+    exams,
+    papers,
+    goals,
+    portfolio,
+    activities,
+    deleted: recentlyDeleted,
+    theme,
+    outlookCalendarUrl,
+    calendarLastSync,
+  });
+
   useEffect(() => {
-    if (!userId) {
-      setSubjects(EMPTY_SUBJECTS);
-      setTasks(EMPTY_TASKS);
-      setDeadlines(EMPTY_DEADLINES);
-      setExams(EMPTY_EXAMS);
-      setPapers(EMPTY_PAPERS);
-      setGoals(EMPTY_GOALS);
-      setPortfolio(EMPTY_PORTFOLIO);
-      setActivities(EMPTY_ACTIVITIES);
-      setRecentlyDeleted([]);
-      setTheme("dark");
-      setOutlookCalendarUrl("");
-      setCalendarLastSync(null);
-      setCalendarInput("");
-      setCalendarSyncError("");
-      setLoadedUserId(null);
-      return;
+    let cancelled = false;
+
+    const syncAuthState = async (session) => {
+      if (!isSupabaseConfigured || !supabase) {
+        if (!cancelled) setAuthInitialising(false);
+        return;
+      }
+
+      if (!session?.user) {
+        if (!cancelled) {
+          setAuthUser(null);
+          setCurrentUser(null);
+          setLoadedUserId(null);
+          resetPersistedState();
+          setAuthInitialising(false);
+        }
+        return;
+      }
+
+      try {
+        const profile = await ensureProfile(session.user);
+        if (!cancelled) {
+          setAuthUser(session.user);
+          setCurrentUser(buildSessionUser(session.user, profile));
+        }
+      } catch (error) {
+        console.error("Failed to restore auth session", error);
+        if (!cancelled) {
+          setAuthUser(null);
+          setCurrentUser(null);
+        }
+      } finally {
+        if (!cancelled) setAuthInitialising(false);
+      }
+    };
+
+    if (!isSupabaseConfigured || !supabase) {
+      setAuthInitialising(false);
+      return () => {
+        cancelled = true;
+      };
     }
 
-    setSubjects(readUserStorage(userId, "subjects", EMPTY_SUBJECTS));
-    setTasks(readUserStorage(userId, "tasks", EMPTY_TASKS));
-    setDeadlines(readUserStorage(userId, "deadlines", EMPTY_DEADLINES));
-    setExams(readUserStorage(userId, "exams", EMPTY_EXAMS));
-    setPapers(readUserStorage(userId, "papers", EMPTY_PAPERS));
-    setGoals(readUserStorage(userId, "goals", EMPTY_GOALS));
-    setPortfolio(readUserStorage(userId, "portfolio", EMPTY_PORTFOLIO));
-    setActivities(readUserStorage(userId, "activities", EMPTY_ACTIVITIES));
-    setRecentlyDeleted(readUserStorage(userId, "deleted", []));
-    setTheme(readUserStorage(userId, "theme", "dark"));
-    setOutlookCalendarUrl(readUserStorage(userId, "outlook_calendar_url", ""));
-    setCalendarLastSync(readUserStorage(userId, "outlook_calendar_last_sync", null));
-    setLoadedUserId(userId);
-  }, [userId]);
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        console.error("Failed to read Supabase session", error);
+      }
+      void syncAuthState(data.session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      void syncAuthState(session);
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     setCalendarInput(outlookCalendarUrl);
   }, [outlookCalendarUrl]);
 
   useEffect(() => {
-    if (!userId || loadedUserId !== userId) return;
-    writeUserStorage(userId, "subjects", subjects);
-    writeUserStorage(userId, "tasks", tasks);
-    writeUserStorage(userId, "deadlines", deadlines);
-    writeUserStorage(userId, "exams", exams);
-    writeUserStorage(userId, "papers", papers);
-    writeUserStorage(userId, "goals", goals);
-    writeUserStorage(userId, "portfolio", portfolio);
-    writeUserStorage(userId, "activities", activities);
-    writeUserStorage(userId, "deleted", recentlyDeleted);
-    writeUserStorage(userId, "theme", theme);
-    writeUserStorage(userId, "outlook_calendar_url", outlookCalendarUrl);
-    writeUserStorage(userId, "outlook_calendar_last_sync", calendarLastSync);
+    let cancelled = false;
+
+    const hydrateCloudState = async () => {
+      if (!authUser) {
+        resetPersistedState();
+        setLoadedUserId(null);
+        setCloudHydrating(false);
+        return;
+      }
+
+      setCloudHydrating(true);
+
+      try {
+        let profile = await ensureProfile(authUser);
+        const legacyBundle = getLegacyBundleForEmail(profile.email || authUser.email || "");
+        const shouldImportLegacy =
+          isEmptyAppData(profile.app_data) &&
+          legacyBundle &&
+          !isEmptyAppData(legacyBundle.appData);
+
+        const nextName = profile.name || legacyBundle?.profile.name || authUser.user_metadata?.name || "";
+        const nextSchool = profile.school || legacyBundle?.profile.school || authUser.user_metadata?.school || "";
+        const nextEmail = profile.email || legacyBundle?.profile.email || authUser.email || "";
+        let nextAppData = shouldImportLegacy ? legacyBundle.appData : normaliseAppData(profile.app_data);
+
+        if (
+          shouldImportLegacy ||
+          profile.name !== nextName ||
+          profile.school !== nextSchool ||
+          profile.email !== nextEmail
+        ) {
+          profile = await upsertProfile({
+            id: authUser.id,
+            email: nextEmail,
+            name: nextName,
+            school: nextSchool,
+            appData: nextAppData,
+          });
+          nextAppData = normaliseAppData(profile.app_data);
+        }
+
+        if (!cancelled) {
+          setCurrentUser(buildSessionUser(authUser, profile));
+          applyPersistedState(nextAppData);
+          setLoadedUserId(authUser.id);
+        }
+      } catch (error) {
+        console.error("Failed to load cloud workspace", error);
+        if (!cancelled) {
+          resetPersistedState();
+          setLoadedUserId(null);
+        }
+      } finally {
+        if (!cancelled) setCloudHydrating(false);
+      }
+    };
+
+    void hydrateCloudState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser]);
+
+  useEffect(() => {
+    if (!authUser || !currentUser || loadedUserId !== userId || cloudHydrating) return;
+
+    const timeoutId = setTimeout(() => {
+      upsertProfile({
+        id: authUser.id,
+        email: currentUser.email,
+        name: currentUser.name,
+        school: currentUser.school,
+        appData: exportPersistedState(),
+      }).catch((error) => {
+        console.error("Failed to sync cloud workspace", error);
+      });
+    }, 450);
+
+    return () => clearTimeout(timeoutId);
   }, [
     activities,
     calendarLastSync,
+    cloudHydrating,
+    currentUser,
     deadlines,
     exams,
     goals,
@@ -577,19 +1007,48 @@ export default function Markd() {
     userId,
   ]);
   // ─── Auth ───
-  const handleAuth = (session) => {
-    setCurrentUser(session);
+  const handleAuth = ({ authUser: nextAuthUser, profile }) => {
+    setDemoMode(false);
+    setAuthUser(nextAuthUser);
+    setCurrentUser(buildSessionUser(nextAuthUser, profile));
     setPage("home");
   };
 
-  const handleLogout = () => {
-    clearSession();
+  const handleDemoAuth = () => {
+    setDemoMode(true);
+    setAuthUser(null);
+    setCurrentUser(DEMO_ADMIN_PROFILE);
+    applyPersistedState(createDemoAppData());
+    setLoadedUserId(DEMO_ADMIN_USER_ID);
+    setCloudHydrating(false);
+    setAiMessages([]);
+    setPage("home");
+  };
+
+  const handleLogout = async () => {
+    if (!demoMode && supabase) {
+      await supabase.auth.signOut();
+    }
+    setDemoMode(false);
+    setAuthUser(null);
     setCurrentUser(null);
+    setLoadedUserId(null);
+    resetPersistedState();
     setAiMessages([]);
     setSettingsOpen(false);
   };
 
-  if (!currentUser) return <AuthScreen onAuth={handleAuth} />;
+  if (authInitialising) {
+    return <AppBootScreen message="Connecting to your cloud workspace..." />;
+  }
+
+  if (!currentUser) {
+    return <AuthScreen onAuth={handleAuth} onDemoAuth={handleDemoAuth} cloudError={!isSupabaseConfigured ? CLOUD_CONFIG_ERROR : ""} />;
+  }
+
+  if (cloudHydrating && loadedUserId !== userId) {
+    return <AppBootScreen message="Loading your subjects, deadlines, and exams..." />;
+  }
 
   const userInitial = currentUser.name ? currentUser.name[0].toUpperCase() : "?";
 
@@ -825,7 +1284,7 @@ export default function Markd() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "AI request failed");
-      const assistantText = data.content?.map(block=>block.type==="text"?block.text:"").filter(Boolean).join("\n") || "Sorry, I couldn't process that. Try again?";
+      const assistantText = data.text || "Sorry, I couldn't process that. Try again?";
       setAiMessages(prev=>[...prev,{role:"assistant",content:assistantText}]);
     } catch {
       setAiMessages(prev=>[...prev,{role:"assistant",content:"Connection issue. Check your network and try again."}]);
@@ -880,6 +1339,7 @@ export default function Markd() {
     const firstName = currentUser.name.split(" ")[0];
     return (
       <div className="page">
+        {demoMode && <div className="demo-note-card">Demo admin mode is loaded with sample data. Any changes you make here reset the next time you open the demo.</div>}
         <h2 className="page-title">Hey, {firstName} 👋</h2>
         {subjects.length === 0 ? (
           <div className="onboarding-card">
@@ -1200,7 +1660,8 @@ export default function Markd() {
                 <div className="settings-avatar">{userInitial}</div>
                 <div><div className="settings-name">{currentUser.name}</div><div className="settings-email">{currentUser.email}</div>{currentUser.school&&<div className="settings-school">{currentUser.school}</div>}</div>
               </div>
-              <button className="logout-btn" onClick={handleLogout}><Icon d={icons.logout} size={14} color="var(--danger)"/><span>Sign out</span></button>
+              {demoMode && <div className="demo-settings-note">Demo admin workspace. Changes made here never sync and reset every time you log back into the demo.</div>}
+              <button className="logout-btn" onClick={handleLogout}><Icon d={icons.logout} size={14} color="var(--danger)"/><span>{demoMode ? "Exit demo" : "Sign out"}</span></button>
             </div>
 
             <div className="settings-section">
@@ -1227,6 +1688,7 @@ export default function Markd() {
             <div className="settings-section">
               <div className="settings-section-title">About</div>
               <div className="settings-info">
+                <div className="settings-info-row"><span>Mode</span><span>{demoMode ? "Demo admin" : "Cloud account"}</span></div>
                 {currentUser.school&&<div className="settings-info-row"><span>School</span><span>{currentUser.school}</span></div>}
                 <div className="settings-info-row"><span>Subjects</span><span>{subjects.length}</span></div>
                 <div className="settings-info-row"><span>Tasks</span><span>{tasks.length}</span></div>
@@ -1555,6 +2017,8 @@ export default function Markd() {
         .swatch { width:30px; height:30px; border-radius:50%; border:3px solid transparent; cursor:pointer; transition:border-color 0.15s,transform 0.15s; }
         .swatch.active { border-color:var(--text); transform:scale(1.15); }
         .top-bar-right { display:flex; align-items:center; gap:10px; }
+        .demo-banner { display:flex; align-items:center; justify-content:center; gap:8px; padding:10px 18px; background:rgba(247,162,106,0.12); border-bottom:1px solid rgba(247,162,106,0.25); color:var(--accent2); font-size:11px; text-align:center; }
+        .demo-note-card { background:rgba(247,162,106,0.1); border:1px solid rgba(247,162,106,0.24); color:var(--text); border-radius:12px; padding:14px 16px; margin-bottom:16px; line-height:1.6; }
         .ai-trigger { width:34px; height:34px; border-radius:50%; background:rgba(124,106,247,0.07); border:1px solid rgba(124,106,247,0.27); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background 0.2s, transform 0.2s ease, border-color 0.2s ease; }
         .ai-trigger:hover { background:rgba(124,106,247,0.14); border-color:var(--accent); }
         .ai-sheet { width:100%; max-width:600px; height:85vh; background:var(--surface); border-radius:20px 20px 0 0; display:flex; flex-direction:column; animation:slideUp 0.25s ease; overflow:hidden; }
@@ -1593,6 +2057,7 @@ export default function Markd() {
         .settings-section { margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--border); }
         .settings-section:last-child { border-bottom:none; margin-bottom:0; }
         .settings-section-title { font-family:'Syne',sans-serif; font-weight:600; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; }
+        .demo-settings-note { font-size:11px; color:var(--accent2); line-height:1.6; margin-bottom:12px; }
         .settings-profile { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
         .settings-avatar { width:44px; height:44px; border-radius:50%; background:var(--surface2); border:2px solid var(--accent); display:flex; align-items:center; justify-content:center; font-family:'Syne',sans-serif; font-weight:700; font-size:17px; color:var(--accent); flex-shrink:0; }
         .settings-name { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; }
@@ -1669,6 +2134,8 @@ export default function Markd() {
             </button>
           </div>
         </div>
+
+        {demoMode && <div className="demo-banner">Demo admin mode is active. Changes are temporary and reset every time you open the demo workspace.</div>}
 
         <div className="app-body">
           <nav className="sidebar">

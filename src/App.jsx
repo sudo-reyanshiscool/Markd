@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 
+const API_BASE_URL =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "";
+
 // ─── Auth helpers ───
 const hashPassword = async (password, salt) => {
   const enc = new TextEncoder();
@@ -8,18 +11,34 @@ const hashPassword = async (password, salt) => {
   return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2,"0")).join("");
 };
 
-const getUsers = () => { try { return JSON.parse(localStorage.getItem("markd_users") || "{}"); } catch { return {}; } };
-const saveUsers = (u) => localStorage.setItem("markd_users", JSON.stringify(u));
-const getSession = () => { try { return JSON.parse(localStorage.getItem("markd_session") || "null"); } catch { return null; } };
-const saveSession = (u) => localStorage.setItem("markd_session", JSON.stringify(u));
-const clearSession = () => localStorage.removeItem("markd_session");
+const getUsers = () => {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem("markd_users") || "{}"); } catch { return {}; }
+};
+const saveUsers = (u) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("markd_users", JSON.stringify(u));
+};
+const getSession = () => {
+  if (typeof window === "undefined") return null;
+  try { return JSON.parse(localStorage.getItem("markd_session") || "null"); } catch { return null; }
+};
+const saveSession = (u) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("markd_session", JSON.stringify(u));
+};
+const clearSession = () => {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("markd_session");
+};
 
 // ─── Per-user localStorage hook (race-condition-free) ───
 function useUserStorage(userId, key, defaultValue) {
   const fullKey = userId ? `markd_${userId}_${key}` : null;
-  const initialised = useRef(false);
+  const skipNextWrite = useRef(true);
 
   const [state, setState] = useState(() => {
+    if (typeof window === "undefined") return defaultValue;
     if (!fullKey) return defaultValue;
     try {
       const stored = localStorage.getItem(fullKey);
@@ -29,20 +48,22 @@ function useUserStorage(userId, key, defaultValue) {
 
   // Only write when state actually changes after mount, never during hydration
   useEffect(() => {
+    if (typeof window === "undefined") return;
     if (!fullKey) return;
-    if (!initialised.current) { initialised.current = true; return; }
+    if (skipNextWrite.current) { skipNextWrite.current = false; return; }
     try { localStorage.setItem(fullKey, JSON.stringify(state)); } catch {}
   }, [fullKey, state]);
 
   // Re-hydrate when userId changes (login/logout)
   useEffect(() => {
+    if (typeof window === "undefined") return;
     if (!fullKey) return;
-    initialised.current = false;
+    skipNextWrite.current = true;
     try {
       const stored = localStorage.getItem(fullKey);
       setState(stored !== null ? JSON.parse(stored) : defaultValue);
     } catch { setState(defaultValue); }
-  }, [fullKey]);
+  }, [defaultValue, fullKey]);
 
   return [state, setState];
 }
@@ -491,8 +512,6 @@ export default function Markd() {
   const [teamsUser, setTeamsUser] = useState(null);
   const [syncLog, setSyncLog] = useState([]);
   const [autoSync, setAutoSync] = useState(true);
-  const API_URL = "http://localhost:3001";
-
   // ─── Auth ───
   const handleAuth = (session) => {
     setCurrentUser(session);
@@ -591,10 +610,14 @@ export default function Markd() {
 
   // ─── Teams Integration ───
   const loginTeams = () => {
-    window.open(`${API_URL}/auth/login`,"_blank","width=500,height=700");
+    if (!API_BASE_URL) {
+      addSyncLog("Set VITE_API_URL to enable Teams integration.");
+      return;
+    }
+    window.open(`${API_BASE_URL}/auth/login`,"_blank","width=500,height=700");
     const poll = setInterval(async () => {
       try {
-        const res = await fetch(`${API_URL}/auth/status`,{credentials:"include"});
+        const res = await fetch(`${API_BASE_URL}/auth/status`,{credentials:"include"});
         const data = await res.json();
         if (data.authenticated) { clearInterval(poll); setTeamsConnected(true); setTeamsUser(data.user); addSyncLog("Connected to Microsoft Teams"); syncTeams(); }
       } catch {}
@@ -603,7 +626,9 @@ export default function Markd() {
   };
 
   const logoutTeams = async () => {
-    try { await fetch(`${API_URL}/auth/logout`,{method:"POST",credentials:"include"}); } catch {}
+    if (API_BASE_URL) {
+      try { await fetch(`${API_BASE_URL}/auth/logout`,{method:"POST",credentials:"include"}); } catch {}
+    }
     setTeamsConnected(false); setTeamsUser(null); setTeamsLastSync(null); addSyncLog("Disconnected from Teams");
   };
 
@@ -614,9 +639,13 @@ export default function Markd() {
 
   const syncTeams = async () => {
     if (teamsSyncing) return;
+    if (!API_BASE_URL) {
+      addSyncLog("Set VITE_API_URL to enable Teams sync.");
+      return;
+    }
     setTeamsSyncing(true); addSyncLog("Syncing with Teams...");
     try {
-      const res = await fetch(`${API_URL}/api/teams/sync`,{credentials:"include"});
+      const res = await fetch(`${API_BASE_URL}/api/teams/sync`,{credentials:"include"});
       if (!res.ok) throw new Error("Sync failed");
       const data = await res.json();
       let subjectMap = {};
@@ -664,12 +693,13 @@ export default function Markd() {
     setAiInput("");
     setAiLoading(true);
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch("/api/ai", {
         method:"POST",
-        headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:buildSystemPrompt(),messages:updatedMessages.map(m=>({role:m.role,content:m.content}))}),
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({system:buildSystemPrompt(),messages:updatedMessages.map(m=>({role:m.role,content:m.content}))}),
       });
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "AI request failed");
       const assistantText = data.content?.map(block=>block.type==="text"?block.text:"").filter(Boolean).join("\n") || "Sorry, I couldn't process that. Try again?";
       setAiMessages(prev=>[...prev,{role:"assistant",content:assistantText}]);
     } catch {

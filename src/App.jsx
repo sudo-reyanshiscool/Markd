@@ -317,6 +317,11 @@ const createDemoAppData = () => {
   const bioId = uid();
   const englishId = uid();
   const historyId = uid();
+  const chemistryId = uid();
+  const computerScienceId = uid();
+  const spanishId = uid();
+  const deletedTask = { id: uid(), subjectId: chemistryId, text: "Tidy titration notes", done: false };
+  const deletedGoal = { id: uid(), text: "Join a summer STEM challenge", horizon: "9 months", subjectId: computerScienceId, done: false };
 
   return {
     subjects: [
@@ -324,36 +329,60 @@ const createDemoAppData = () => {
       { id: bioId, name: "Biology", board: "AQA", target: "9", colour: PALETTE[1] },
       { id: englishId, name: "English Literature", board: "AQA", target: "7", colour: PALETTE[2] },
       { id: historyId, name: "History", board: "Edexcel", target: "8", colour: PALETTE[3] },
+      { id: chemistryId, name: "Chemistry", board: "AQA", target: "8", colour: PALETTE[4] },
+      { id: computerScienceId, name: "Computer Science", board: "OCR", target: "9", colour: PALETTE[5] },
+      { id: spanishId, name: "Spanish", board: "AQA", target: "7", colour: PALETTE[6] },
     ],
     tasks: [
       { id: uid(), subjectId: mathsId, text: "Finish algebra revision set", done: false },
       { id: uid(), subjectId: bioId, text: "Make flashcards for respiration", done: true },
       { id: uid(), subjectId: englishId, text: "Annotate Macbeth Act 2", done: false },
       { id: uid(), subjectId: historyId, text: "Plan Cold War essay", done: false },
+      { id: uid(), subjectId: chemistryId, text: "Complete organic chemistry recap quiz", done: false },
+      { id: uid(), subjectId: computerScienceId, text: "Debug binary search trace questions", done: true },
+      { id: uid(), subjectId: spanishId, text: "Practise speaking answers for theme 2", done: false },
+      { id: uid(), subjectId: mathsId, text: "Review mistakes from last mock", done: true },
+      { id: uid(), subjectId: bioId, text: "Label heart and circulation diagrams", done: false },
     ],
     deadlines: [
       { id: uid(), subjectId: historyId, title: "Cold War source analysis", date: addDays(4) },
       { id: uid(), subjectId: englishId, title: "Macbeth essay draft", date: addDays(7) },
       { id: uid(), subjectId: bioId, title: "Required practical write-up", date: addDays(11) },
+      { id: uid(), subjectId: chemistryId, title: "Bonding revision booklet", date: addDays(5) },
+      { id: uid(), subjectId: computerScienceId, title: "Programming challenge submission", date: addDays(13) },
+      { id: uid(), subjectId: spanishId, title: "Speaking recording upload", date: addDays(16) },
     ],
     exams: [
       { id: uid(), subjectId: mathsId, name: "Maths Paper 1", board: "Edexcel", date: addDays(9) },
       { id: uid(), subjectId: bioId, name: "Biology Mock", board: "AQA", date: addDays(15) },
       { id: uid(), subjectId: englishId, name: "Poetry Comparison Test", board: "AQA", date: addDays(20) },
+      { id: uid(), subjectId: chemistryId, name: "Chemistry Paper 2", board: "AQA", date: addDays(22) },
+      { id: uid(), subjectId: computerScienceId, name: "OCR Algorithms Assessment", board: "OCR", date: addDays(27) },
+      { id: uid(), subjectId: historyId, name: "Elizabethan England Mock", board: "Edexcel", date: addDays(31) },
+      { id: uid(), subjectId: spanishId, name: "Spanish Listening Test", board: "AQA", date: addDays(35) },
     ],
     papers: [
       { id: uid(), subjectId: mathsId, title: "November Mock", year: "2025", paper: "1", scored: 67, total: 80, file: null },
       { id: uid(), subjectId: bioId, title: "Practice Paper", year: "2025", paper: "2", scored: 74, total: 90, file: null },
       { id: uid(), subjectId: historyId, title: "Depth Study Paper", year: "2025", paper: "", scored: 42, total: 52, file: null },
+      { id: uid(), subjectId: chemistryId, title: "Rates and Energy Checkpoint", year: "2025", paper: "1", scored: 61, total: 70, file: null },
+      { id: uid(), subjectId: computerScienceId, title: "Programming Techniques Mock", year: "2025", paper: "2", scored: 59, total: 70, file: null },
+      { id: uid(), subjectId: spanishId, title: "Reading Practice", year: "2025", paper: "", scored: 46, total: 60, file: null },
     ],
     goals: [
       { id: uid(), text: "Push Maths average above 85%", horizon: "3 months", subjectId: mathsId, done: false },
       { id: uid(), text: "Finish Biology flashcards before mocks", horizon: "3 months", subjectId: bioId, done: true },
       { id: uid(), text: "Build a strong essay bank for History", horizon: "6 months", subjectId: historyId, done: false },
+      { id: uid(), text: "Reach grade 8 confidence in Chemistry calculations", horizon: "6 months", subjectId: chemistryId, done: false },
+      { id: uid(), text: "Ship one polished coding project for portfolio", horizon: "9 months", subjectId: computerScienceId, done: false },
+      { id: uid(), text: "Hold a 10-minute Spanish conversation confidently", horizon: "12 months", subjectId: spanishId, done: false },
     ],
     portfolio: [
       { id: uid(), subjectId: bioId, title: "Independent enzyme investigation", type: "Project", desc: "Designed and analysed a practical exploring pH and enzyme activity, then presented the findings.", tags: ["Practical", "Analysis", "Presentation"] },
       { id: uid(), subjectId: historyId, title: "Regional debate finalist", type: "Achievement", desc: "Reached the final round of an inter-school historical debate competition.", tags: ["Debate", "Public Speaking"] },
+      { id: uid(), subjectId: computerScienceId, title: "Revision planner prototype", type: "Project", desc: "Built a lightweight revision-planning prototype with subject cards, deadline priorities, and exam countdown logic.", tags: ["Coding", "UX", "JavaScript"] },
+      { id: uid(), subjectId: spanishId, title: "Spanish speaking award", type: "Achievement", desc: "Won the department prize for consistency and confidence in oral practice sessions.", tags: ["Languages", "Speaking"] },
+      { id: uid(), subjectId: mathsId, title: "UKMT challenge commendation", type: "Competition", desc: "Earned a silver-level score and helped run peer practice sessions after school.", tags: ["Competition", "Problem Solving"] },
     ],
     activities: [
       {
@@ -371,8 +400,40 @@ const createDemoAppData = () => {
         achievements: ["Best Speaker at winter invitational", "Mentored Year 9 debate team"],
         tags: ["Leadership", "Speaking"],
       },
+      {
+        id: uid(),
+        name: "Code Club",
+        role: "Project Lead",
+        organisation: "Markd Demo Academy",
+        desc: "Run lunchtime build sessions, support beginner coders, and demo small tools for revision and organisation.",
+        colour: PALETTE[7],
+        hoursPerWeek: 2,
+        events: [
+          { title: "App showcase lunch session", date: addDays(8) },
+          { title: "Hackathon planning meeting", date: addDays(24) },
+        ],
+        achievements: ["Released a homework tracker MVP", "Led a 20-student debugging workshop"],
+        tags: ["Technology", "Mentoring"],
+      },
+      {
+        id: uid(),
+        name: "Basketball",
+        role: "Starting Guard",
+        organisation: "Markd Demo Academy",
+        desc: "Train twice a week and support match-day prep for the senior team.",
+        colour: PALETTE[8],
+        hoursPerWeek: 4,
+        events: [
+          { title: "League fixture vs Riverside", date: addDays(10) },
+        ],
+        achievements: ["Player of the month in February"],
+        tags: ["Sport", "Teamwork"],
+      },
     ],
-    deleted: [],
+    deleted: [
+      { id: uid(), type: "task", item: deletedTask, label: deletedTask.text, deletedAt: "08:45" },
+      { id: uid(), type: "goal", item: deletedGoal, label: deletedGoal.text, deletedAt: "13:10" },
+    ],
     theme: "dark",
     outlookCalendarUrl: "",
     calendarLastSync: null,
@@ -388,11 +449,23 @@ function AuthScreen({ onAuth, onDemoAuth }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [demoTapCount, setDemoTapCount] = useState(0);
+  const [demoUnlocked, setDemoUnlocked] = useState(false);
 
   const upd = (k, v) => { setForm(f => ({...f, [k]:v})); setError(""); };
   const openDemoAdmin = () => {
     setError("");
     onDemoAuth?.();
+  };
+  const handleLogoTap = () => {
+    setDemoTapCount(prev => {
+      const next = prev + 1;
+      if (next >= 5) {
+        setDemoUnlocked(true);
+        setScreen("login");
+      }
+      return next >= 5 ? 0 : next;
+    });
   };
 
   const handleSignup = async () => {
@@ -447,6 +520,7 @@ function AuthScreen({ onAuth, onDemoAuth }) {
         .auth-root { min-height:100vh; min-height:100dvh; background:#0a0a0f; color:#e8e8f0; font-family:'DM Mono',monospace; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; }
         .auth-card { width:100%; max-width:400px; background:#111118; border:1px solid #2a2a38; border-radius:20px; padding:32px 28px; display:flex; flex-direction:column; gap:20px; }
         .auth-logo { font-family:'Syne',sans-serif; font-weight:800; font-size:28px; color:#e8e8f0; text-align:center; }
+        .auth-logo.tap-target { cursor:pointer; user-select:none; }
         .auth-logo-dot { display:inline-block; width:9px; height:9px; background:#7c6af7; border-radius:50%; margin-left:3px; vertical-align:middle; position:relative; top:-2px; box-shadow:0 0 12px #7c6af7; }
         .auth-avatar-wrap { display:flex; justify-content:center; margin-bottom:4px; }
         .auth-avatar { width:64px; height:64px; border-radius:50%; background:rgba(124,106,247,0.12); border:2px solid rgba(124,106,247,0.3); display:flex; align-items:center; justify-content:center; font-family:'Syne',sans-serif; font-weight:700; font-size:24px; color:#7c6af7; }
@@ -473,6 +547,7 @@ function AuthScreen({ onAuth, onDemoAuth }) {
         .auth-footer { text-align:center; font-size:11px; color:#6b6b80; }
         .auth-demo-note { font-size:11px; color:#9d9db4; line-height:1.6; text-align:center; }
         .auth-demo-creds { display:block; color:#e8e8f0; margin-top:4px; }
+        .auth-secret-hint { text-align:center; font-size:10px; color:#6b6b80; letter-spacing:0.2px; }
         .auth-welcome-art { display:flex; justify-content:center; gap:8px; }
         .auth-dot { width:10px; height:10px; border-radius:50%; animation:authPulse 2s infinite ease-in-out; }
         .auth-dot:nth-child(2) { animation-delay:0.3s; }
@@ -482,7 +557,7 @@ function AuthScreen({ onAuth, onDemoAuth }) {
 
       {screen === "welcome" && (
         <div className="auth-card">
-          <div className="auth-logo">Markd<span className="auth-logo-dot"/></div>
+          <div className="auth-logo tap-target" onClick={handleLogoTap}>Markd<span className="auth-logo-dot"/></div>
           <div className="auth-welcome-art">
             <div className="auth-dot" style={{background:"#7c6af7"}}/>
             <div className="auth-dot" style={{background:"#6af7c4"}}/>
@@ -493,11 +568,7 @@ function AuthScreen({ onAuth, onDemoAuth }) {
             <div className="auth-sub" style={{marginTop:8}}>Track subjects, deadlines, exams, and goals — all in one place.</div>
           </div>
           <button className="auth-btn" onClick={() => setScreen("signup")}>Get started</button>
-          <button className="auth-btn secondary" onClick={openDemoAdmin}>Open demo admin</button>
-          <div className="auth-demo-note">
-            Demo login
-            <span className="auth-demo-creds">{DEMO_ADMIN_EMAIL} / {DEMO_ADMIN_PASSWORD}</span>
-          </div>
+          {demoUnlocked && <button className="auth-btn secondary" onClick={openDemoAdmin}>Use presenter workspace</button>}
           <div className="auth-footer">
             Already have an account?{" "}
             <button className="auth-link" onClick={() => setScreen("login")}>Sign in</button>
@@ -507,7 +578,7 @@ function AuthScreen({ onAuth, onDemoAuth }) {
 
       {screen === "signup" && (
         <div className="auth-card">
-          <div className="auth-logo">Markd<span className="auth-logo-dot"/></div>
+          <div className="auth-logo tap-target" onClick={handleLogoTap}>Markd<span className="auth-logo-dot"/></div>
           <div className="auth-avatar-wrap">
             <div className="auth-avatar">{initial}</div>
           </div>
@@ -533,7 +604,7 @@ function AuthScreen({ onAuth, onDemoAuth }) {
 
       {screen === "login" && (
         <div className="auth-card">
-          <div className="auth-logo">Markd<span className="auth-logo-dot"/></div>
+          <div className="auth-logo tap-target" onClick={handleLogoTap}>Markd<span className="auth-logo-dot"/></div>
           <div className="auth-title">Welcome back</div>
           <div className="auth-sub">Sign in to your account</div>
           {error && <div className="auth-error">{error}</div>}
@@ -545,20 +616,25 @@ function AuthScreen({ onAuth, onDemoAuth }) {
             </div>
           </div>
           <button className="auth-btn" onClick={handleLogin} disabled={loading}>{loading ? "Signing in…" : "Sign in"}</button>
-          <div className="auth-divider">
-            <div className="auth-divider-line"/>
-            <div className="auth-divider-text">or</div>
-            <div className="auth-divider-line"/>
-          </div>
-          <button className="auth-btn secondary" onClick={openDemoAdmin}>Open demo admin</button>
-          <div className="auth-demo-note">
-            Use the demo credentials for a resettable showroom workspace.
-            <span className="auth-demo-creds">{DEMO_ADMIN_EMAIL} / {DEMO_ADMIN_PASSWORD}</span>
-          </div>
+          {demoUnlocked && (
+            <>
+              <div className="auth-divider">
+                <div className="auth-divider-line"/>
+                <div className="auth-divider-text">presenter</div>
+                <div className="auth-divider-line"/>
+              </div>
+              <button className="auth-btn secondary" onClick={openDemoAdmin}>Use presenter workspace</button>
+              <div className="auth-demo-note">
+                Presenter login
+                <span className="auth-demo-creds">{DEMO_ADMIN_EMAIL} / {DEMO_ADMIN_PASSWORD}</span>
+              </div>
+            </>
+          )}
           <div className="auth-footer">
             Don't have an account?{" "}
             <button className="auth-link" onClick={() => { setScreen("signup"); setError(""); setForm(f=>({...f,password:""})); }}>Sign up</button>
           </div>
+          {demoUnlocked && <div className="auth-secret-hint">Presenter access unlocked. Click the logo five times again after refresh if you need it later.</div>}
         </div>
       )}
     </div>

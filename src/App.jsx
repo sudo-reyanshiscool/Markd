@@ -48,6 +48,8 @@ const writeUserStorage = (userId, key, value) => {
   try { localStorage.setItem(`markd_${userId}_${key}`, JSON.stringify(value)); } catch {}
 };
 
+const normaliseCalendarUrl = (value) => value.trim().replace(/^webcal:\/\//i, "https://");
+
 // ─── Colour palette for subjects ───
 const PALETTE = [
   "#f7a26a", "#7c6af7", "#6af7c4", "#f76a6a", "#f7e96a",
@@ -299,7 +301,7 @@ const TYPE_LABELS = {
 // ═══════════════════════════════════════════
 function AuthScreen({ onAuth }) {
   const [screen, setScreen] = useState("welcome"); // welcome | login | signup
-  const [form, setForm] = useState({ name:"", email:"", password:"", confirm:"" });
+  const [form, setForm] = useState({ name:"", school:"", email:"", password:"", confirm:"" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
@@ -308,6 +310,7 @@ function AuthScreen({ onAuth }) {
 
   const handleSignup = async () => {
     if (!form.name.trim()) return setError("Please enter your name.");
+    if (!form.school.trim()) return setError("Please enter your school name.");
     if (!form.email.trim() || !form.email.includes("@")) return setError("Please enter a valid email.");
     if (form.password.length < 6) return setError("Password must be at least 6 characters.");
     if (form.password !== form.confirm) return setError("Passwords don't match.");
@@ -318,9 +321,9 @@ function AuthScreen({ onAuth }) {
     const salt = crypto.randomUUID();
     const hash = await hashPassword(form.password, salt);
     const userId = "u_" + Date.now();
-    users[emailKey] = { userId, name: form.name.trim(), email: emailKey, hash, salt, createdAt: new Date().toISOString() };
+    users[emailKey] = { userId, name: form.name.trim(), school: form.school.trim(), email: emailKey, hash, salt, createdAt: new Date().toISOString() };
     saveUsers(users);
-    const session = { userId, name: form.name.trim(), email: emailKey };
+    const session = { userId, name: form.name.trim(), school: form.school.trim(), email: emailKey };
     saveSession(session);
     setLoading(false);
     onAuth(session);
@@ -335,7 +338,7 @@ function AuthScreen({ onAuth }) {
     if (!user) { setError("No account found with this email."); setLoading(false); return; }
     const hash = await hashPassword(form.password, user.salt);
     if (hash !== user.hash) { setError("Incorrect password."); setLoading(false); return; }
-    const session = { userId: user.userId, name: user.name, email: emailKey };
+    const session = { userId: user.userId, name: user.name, school: user.school || "", email: emailKey };
     saveSession(session);
     setLoading(false);
     onAuth(session);
@@ -413,6 +416,7 @@ function AuthScreen({ onAuth }) {
           {error && <div className="auth-error">{error}</div>}
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             <input className="auth-input" placeholder="Your name" value={form.name} onChange={e=>upd("name",e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSignup()}/>
+            <input className="auth-input" placeholder="School name" value={form.school} onChange={e=>upd("school",e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSignup()}/>
             <input className="auth-input" placeholder="Email address" type="email" value={form.email} onChange={e=>upd("email",e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSignup()}/>
             <div className="auth-input-wrap">
               <input className="auth-input has-toggle" placeholder="Password (min. 6 characters)" type={showPass?"text":"password"} value={form.password} onChange={e=>upd("password",e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSignup()}/>
@@ -473,6 +477,8 @@ export default function Markd() {
   const [activities, setActivities] = useState(EMPTY_ACTIVITIES);
   const [recentlyDeleted, setRecentlyDeleted] = useState([]);
   const [theme, setTheme] = useState("dark");
+  const [outlookCalendarUrl, setOutlookCalendarUrl] = useState("");
+  const [calendarLastSync, setCalendarLastSync] = useState(null);
   const [loadedUserId, setLoadedUserId] = useState(null);
 
   // ─── Non-persisted UI state ───
@@ -497,6 +503,9 @@ export default function Markd() {
   const [teamsUser, setTeamsUser] = useState(null);
   const [syncLog, setSyncLog] = useState([]);
   const [autoSync, setAutoSync] = useState(true);
+  const [calendarInput, setCalendarInput] = useState("");
+  const [calendarSyncing, setCalendarSyncing] = useState(false);
+  const [calendarSyncError, setCalendarSyncError] = useState("");
 
   useEffect(() => {
     if (!userId) {
@@ -510,6 +519,10 @@ export default function Markd() {
       setActivities(EMPTY_ACTIVITIES);
       setRecentlyDeleted([]);
       setTheme("dark");
+      setOutlookCalendarUrl("");
+      setCalendarLastSync(null);
+      setCalendarInput("");
+      setCalendarSyncError("");
       setLoadedUserId(null);
       return;
     }
@@ -524,8 +537,14 @@ export default function Markd() {
     setActivities(readUserStorage(userId, "activities", EMPTY_ACTIVITIES));
     setRecentlyDeleted(readUserStorage(userId, "deleted", []));
     setTheme(readUserStorage(userId, "theme", "dark"));
+    setOutlookCalendarUrl(readUserStorage(userId, "outlook_calendar_url", ""));
+    setCalendarLastSync(readUserStorage(userId, "outlook_calendar_last_sync", null));
     setLoadedUserId(userId);
   }, [userId]);
+
+  useEffect(() => {
+    setCalendarInput(outlookCalendarUrl);
+  }, [outlookCalendarUrl]);
 
   useEffect(() => {
     if (!userId || loadedUserId !== userId) return;
@@ -539,8 +558,11 @@ export default function Markd() {
     writeUserStorage(userId, "activities", activities);
     writeUserStorage(userId, "deleted", recentlyDeleted);
     writeUserStorage(userId, "theme", theme);
+    writeUserStorage(userId, "outlook_calendar_url", outlookCalendarUrl);
+    writeUserStorage(userId, "outlook_calendar_last_sync", calendarLastSync);
   }, [
     activities,
+    calendarLastSync,
     deadlines,
     exams,
     goals,
@@ -551,6 +573,7 @@ export default function Markd() {
     subjects,
     tasks,
     theme,
+    outlookCalendarUrl,
     userId,
   ]);
   // ─── Auth ───
@@ -609,6 +632,12 @@ export default function Markd() {
   const sub = (id) => subjects.find(s => s.id === id);
   const subColour = (id) => sub(id)?.colour || "var(--muted)";
   const subName = (id) => sub(id)?.name || "Unknown";
+  const inferSubjectIdFromTitle = (title) => {
+    const match = [...subjects]
+      .sort((a, b) => b.name.length - a.name.length)
+      .find(subject => title.toLowerCase().includes(subject.name.toLowerCase()));
+    return match?.id || null;
+  };
   const avgMark = (sId) => { const sp=papers.filter(p=>p.subjectId===sId); if(!sp.length) return null; return Math.round(sp.reduce((a,p)=>a+(p.scored/p.total)*100,0)/sp.length); };
   const subjectDeadlineCount = (sId) => deadlines.filter(d=>d.subjectId===sId).length;
   const subjectTaskProgress = (sId) => { const st=tasks.filter(t=>t.subjectId===sId); if(!st.length) return null; return { done:st.filter(t=>t.done).length, total:st.length }; };
@@ -714,6 +743,61 @@ export default function Markd() {
     finally { setTeamsSyncing(false); }
   };
 
+  const syncOutlookCalendar = async (rawUrl = calendarInput, shouldPersistLink = true) => {
+    const calendarUrl = normaliseCalendarUrl(rawUrl || outlookCalendarUrl);
+    if (!calendarUrl) {
+      setCalendarSyncError("Paste your Outlook assessment calendar link first.");
+      return;
+    }
+
+    setCalendarSyncing(true);
+    setCalendarSyncError("");
+
+    try {
+      const response = await fetch("/api/outlook-calendar", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ url: calendarUrl }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Calendar sync failed.");
+
+      const nextImportedExams = data.events.map(event => {
+        const existing = exams.find(exam => exam.outlookEventId === event.id);
+        return {
+          id: existing?.id || uid(),
+          subjectId: existing?.subjectId || inferSubjectIdFromTitle(event.title),
+          name: event.title,
+          board: "Outlook Calendar",
+          date: event.date,
+          description: event.description || "",
+          location: event.location || "",
+          outlookEventId: event.id,
+        };
+      });
+
+      setExams(prev => [...prev.filter(exam => !exam.outlookEventId), ...nextImportedExams]);
+      if (shouldPersistLink) setOutlookCalendarUrl(calendarUrl);
+      setCalendarInput(calendarUrl);
+      setCalendarLastSync(new Date().toISOString());
+      if (nextImportedExams.length === 0) {
+        setCalendarSyncError("The calendar synced, but there were no upcoming assessments to import.");
+      }
+    } catch (error) {
+      setCalendarSyncError(error instanceof Error ? error.message : "Calendar sync failed.");
+    } finally {
+      setCalendarSyncing(false);
+    }
+  };
+
+  const disconnectOutlookCalendar = () => {
+    setOutlookCalendarUrl("");
+    setCalendarInput("");
+    setCalendarLastSync(null);
+    setCalendarSyncError("");
+    setExams(prev => prev.filter(exam => !exam.outlookEventId));
+  };
+
   // ─── AI Assistant ───
   const buildSystemPrompt = () => {
     const now = new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
@@ -722,7 +806,7 @@ export default function Markd() {
     const examSummaries = [...exams].sort((a,b)=>new Date(a.date)-new Date(b.date)).map(e=>`- ${e.name} (${e.board}) on ${fmtDate(e.date)} (${daysUntil(e.date)} days away)`).join("\n");
     const taskSummaries = tasks.map(t=>`- [${t.done?"DONE":"TODO"}] ${t.text} [${subName(t.subjectId)}]`).join("\n");
     const goalSummaries = goals.map(g=>`- [${g.done?"DONE":"TODO"}] ${g.text} (${g.horizon}${g.subjectId?", "+subName(g.subjectId):""})`).join("\n");
-    return `You are the AI study assistant built into Markd, a student organiser app. You are talking to ${currentUser.name}. Today is ${now}.\n\nHelp them stay on top of schoolwork, plan revision, suggest priorities, and motivate them. Be concise and supportive. Use their actual data below.\n\nSUBJECTS:\n${subSummaries||"None yet"}\n\nUPCOMING DEADLINES:\n${dlSummaries||"None"}\n\nUPCOMING EXAMS:\n${examSummaries||"None"}\n\nCURRENT TASKS:\n${taskSummaries||"None"}\n\nGOALS:\n${goalSummaries||"None"}`;
+    return `You are the AI study assistant built into Markd, a student organiser app. You are talking to ${currentUser.name}${currentUser.school ? ` from ${currentUser.school}` : ""}. Today is ${now}.\n\nHelp them stay on top of schoolwork, plan revision, suggest priorities, and motivate them. Be concise and supportive. Use their actual data below.\n\nSUBJECTS:\n${subSummaries||"None yet"}\n\nUPCOMING DEADLINES:\n${dlSummaries||"None"}\n\nUPCOMING EXAMS:\n${examSummaries||"None"}\n\nCURRENT TASKS:\n${taskSummaries||"None"}\n\nGOALS:\n${goalSummaries||"None"}`;
   };
 
   const sendAiMessage = async () => {
@@ -903,10 +987,23 @@ export default function Markd() {
 
   const renderExams = () => {
     const sorted = [...exams].sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const calendarSyncLabel = calendarLastSync ? new Date(calendarLastSync).toLocaleString("en-GB",{ day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : null;
     return (
       <div className="page">
         <h2 className="page-title">Exams</h2>
-        {exams.length === 0 ? <EmptyState icon={icons.clock} message="No exams yet. Tap + to add one." action={()=>openModal("addExam")} actionLabel="Add Exam"/> :
+        <div className="calendar-sync-card">
+          <div className="calendar-sync-title">Outlook Assessment Calendar</div>
+          <div className="calendar-sync-sub">Paste your Outlook shared calendar link and Markd will import upcoming assessments into this tab.</div>
+          <input className="modal-input" placeholder="https://outlook.office.com/..." value={calendarInput} onChange={e=>setCalendarInput(e.target.value)} />
+          <div className="calendar-sync-actions">
+            <button className="calendar-sync-btn" onClick={()=>syncOutlookCalendar(calendarInput, true)} disabled={calendarSyncing}>{calendarSyncing ? "Syncing..." : outlookCalendarUrl ? "Save & Re-sync" : "Save & Sync"}</button>
+            {outlookCalendarUrl && <button className="calendar-secondary-btn" onClick={()=>syncOutlookCalendar(outlookCalendarUrl, false)} disabled={calendarSyncing}>Sync Now</button>}
+            {outlookCalendarUrl && <button className="calendar-secondary-btn danger" onClick={disconnectOutlookCalendar} disabled={calendarSyncing}>Disconnect</button>}
+          </div>
+          {calendarSyncLabel && <div className="calendar-sync-meta">Last synced {calendarSyncLabel}</div>}
+          {calendarSyncError && <div className="calendar-sync-error">{calendarSyncError}</div>}
+        </div>
+        {exams.length === 0 ? <EmptyState icon={icons.clock} message="No exams yet. Add one manually or sync your Outlook assessment calendar above." action={()=>openModal("addExam")} actionLabel="Add Exam"/> :
         sorted.map(ex => { const d=daysUntil(ex.date); return (
           <div key={ex.id} className="exam-card" style={{borderLeft:`4px solid ${subColour(ex.subjectId)}`}}>
             <div style={{flex:1}}><div className="exam-name">{ex.name}</div><div className="exam-board">{ex.board}</div><div className="exam-date">{fmtDate(ex.date)}</div></div>
@@ -1101,7 +1198,7 @@ export default function Markd() {
             <div className="settings-section">
               <div className="settings-profile">
                 <div className="settings-avatar">{userInitial}</div>
-                <div><div className="settings-name">{currentUser.name}</div><div className="settings-email">{currentUser.email}</div></div>
+                <div><div className="settings-name">{currentUser.name}</div><div className="settings-email">{currentUser.email}</div>{currentUser.school&&<div className="settings-school">{currentUser.school}</div>}</div>
               </div>
               <button className="logout-btn" onClick={handleLogout}><Icon d={icons.logout} size={14} color="var(--danger)"/><span>Sign out</span></button>
             </div>
@@ -1130,6 +1227,7 @@ export default function Markd() {
             <div className="settings-section">
               <div className="settings-section-title">About</div>
               <div className="settings-info">
+                {currentUser.school&&<div className="settings-info-row"><span>School</span><span>{currentUser.school}</span></div>}
                 <div className="settings-info-row"><span>Subjects</span><span>{subjects.length}</span></div>
                 <div className="settings-info-row"><span>Tasks</span><span>{tasks.length}</span></div>
                 <div className="settings-info-row"><span>Deadlines</span><span>{deadlines.length}</span></div>
@@ -1316,6 +1414,17 @@ export default function Markd() {
         .exam-date { font-size:11px; color:var(--muted); margin-top:4px; }
         .exam-days { font-family:'Syne',sans-serif; font-weight:800; font-size:34px; text-align:center; line-height:1; }
         .exam-days-label { display:block; font-size:10px; font-weight:400; color:var(--muted); margin-top:2px; }
+        .calendar-sync-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:16px; }
+        .calendar-sync-title { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; margin-bottom:6px; }
+        .calendar-sync-sub { font-size:11px; color:var(--muted); line-height:1.5; margin-bottom:12px; }
+        .calendar-sync-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+        .calendar-sync-btn { padding:10px 14px; border-radius:8px; border:none; background:var(--accent); color:white; font-family:'Syne',sans-serif; font-weight:700; font-size:12px; cursor:pointer; }
+        .calendar-sync-btn:disabled { opacity:0.5; cursor:default; }
+        .calendar-secondary-btn { padding:10px 14px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; }
+        .calendar-secondary-btn:disabled { opacity:0.5; cursor:default; }
+        .calendar-secondary-btn.danger { color:var(--danger); border-color:rgba(247,106,106,0.25); background:rgba(247,106,106,0.07); }
+        .calendar-sync-meta { font-size:10px; color:var(--muted); margin-top:10px; }
+        .calendar-sync-error { font-size:11px; color:var(--danger); margin-top:8px; }
         .paper-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:8px; }
         .paper-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
         .paper-score { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; white-space:nowrap; }
@@ -1450,6 +1559,7 @@ export default function Markd() {
         .settings-avatar { width:44px; height:44px; border-radius:50%; background:var(--surface2); border:2px solid var(--accent); display:flex; align-items:center; justify-content:center; font-family:'Syne',sans-serif; font-weight:700; font-size:17px; color:var(--accent); flex-shrink:0; }
         .settings-name { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; }
         .settings-email { font-size:11px; color:var(--muted); margin-top:2px; }
+        .settings-school { font-size:11px; color:var(--accent); margin-top:4px; }
         .logout-btn { display:flex; align-items:center; gap:6px; padding:9px 14px; border-radius:8px; border:1px solid rgba(247,106,106,0.25); background:rgba(247,106,106,0.07); color:var(--danger); font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; transition:background 0.2s; }
         .logout-btn:hover { background:rgba(247,106,106,0.14); }
         .teams-connect-btn { width:100%; display:flex; align-items:center; justify-content:center; gap:10px; padding:14px; border-radius:10px; background:rgba(127,186,0,0.08); border:1px solid rgba(127,186,0,0.25); color:var(--text); font-family:'DM Mono',monospace; font-size:13px; cursor:pointer; }

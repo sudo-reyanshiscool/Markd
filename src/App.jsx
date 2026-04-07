@@ -1045,10 +1045,13 @@ export default function Markd() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "AI request failed");
-      const assistantText = data.content?.map(block=>block.type==="text"?block.text:"").filter(Boolean).join("\n") || "Sorry, I couldn't process that. Try again?";
+      const assistantText = typeof data.text === "string" && data.text.trim()
+        ? data.text.trim()
+        : "Sorry, I couldn't process that. Try again?";
       setAiMessages(prev=>[...prev,{role:"assistant",content:assistantText}]);
-    } catch {
-      setAiMessages(prev=>[...prev,{role:"assistant",content:"Connection issue. Check your network and try again."}]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Connection issue. Check your network and try again.";
+      setAiMessages(prev=>[...prev,{role:"assistant",content:message}]);
     } finally { setAiLoading(false); }
   };
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 const API_BASE_URL =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "";
@@ -32,42 +32,21 @@ const clearSession = () => {
   localStorage.removeItem("markd_session");
 };
 
-// ─── Per-user localStorage hook (race-condition-free) ───
-function useUserStorage(userId, key, defaultValue) {
-  const fullKey = userId ? `markd_${userId}_${key}` : null;
-  const hydratedKeyRef = useRef(fullKey);
+// ─── Per-user localStorage helpers ───
+const readUserStorage = (userId, key, defaultValue) => {
+  if (typeof window === "undefined" || !userId) return defaultValue;
+  try {
+    const stored = localStorage.getItem(`markd_${userId}_${key}`);
+    return stored !== null ? JSON.parse(stored) : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+};
 
-  const [state, setState] = useState(() => {
-    if (typeof window === "undefined") return defaultValue;
-    if (!fullKey) return defaultValue;
-    try {
-      const stored = localStorage.getItem(fullKey);
-      return stored !== null ? JSON.parse(stored) : defaultValue;
-    } catch { return defaultValue; }
-  });
-
-  // Only write when state actually changes after mount, never during hydration
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!fullKey) return;
-    if (hydratedKeyRef.current !== fullKey) return;
-    try { localStorage.setItem(fullKey, JSON.stringify(state)); } catch {}
-  }, [fullKey, state]);
-
-  // Re-hydrate when userId changes (login/logout)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    hydratedKeyRef.current = null;
-    if (!fullKey) { setState(defaultValue); return; }
-    try {
-      const stored = localStorage.getItem(fullKey);
-      setState(stored !== null ? JSON.parse(stored) : defaultValue);
-    } catch { setState(defaultValue); }
-    hydratedKeyRef.current = fullKey;
-  }, [defaultValue, fullKey]);
-
-  return [state, setState];
-}
+const writeUserStorage = (userId, key, value) => {
+  if (typeof window === "undefined" || !userId) return;
+  try { localStorage.setItem(`markd_${userId}_${key}`, JSON.stringify(value)); } catch {}
+};
 
 // ─── Colour palette for subjects ───
 const PALETTE = [
@@ -229,8 +208,12 @@ const CURRICULA = {
 };
 
 // ─── Helpers ───
-let _id = 100;
-const uid = () => String(++_id);
+const uid = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `markd_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+};
 const today = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
 const daysUntil = (dateStr) => {
   const t = today();
@@ -480,16 +463,17 @@ export default function Markd() {
   const [modal, setModal] = useState(null);
 
   // ─── All persisted state scoped per user ───
-  const [subjects, setSubjects] = useUserStorage(userId, "subjects", EMPTY_SUBJECTS);
-  const [tasks, setTasks] = useUserStorage(userId, "tasks", EMPTY_TASKS);
-  const [deadlines, setDeadlines] = useUserStorage(userId, "deadlines", EMPTY_DEADLINES);
-  const [exams, setExams] = useUserStorage(userId, "exams", EMPTY_EXAMS);
-  const [papers, setPapers] = useUserStorage(userId, "papers", EMPTY_PAPERS);
-  const [goals, setGoals] = useUserStorage(userId, "goals", EMPTY_GOALS);
-  const [portfolio, setPortfolio] = useUserStorage(userId, "portfolio", EMPTY_PORTFOLIO);
-  const [activities, setActivities] = useUserStorage(userId, "activities", EMPTY_ACTIVITIES);
-  const [recentlyDeleted, setRecentlyDeleted] = useUserStorage(userId, "deleted", []);
-  const [theme, setTheme] = useUserStorage(userId, "theme", "dark");
+  const [subjects, setSubjects] = useState(EMPTY_SUBJECTS);
+  const [tasks, setTasks] = useState(EMPTY_TASKS);
+  const [deadlines, setDeadlines] = useState(EMPTY_DEADLINES);
+  const [exams, setExams] = useState(EMPTY_EXAMS);
+  const [papers, setPapers] = useState(EMPTY_PAPERS);
+  const [goals, setGoals] = useState(EMPTY_GOALS);
+  const [portfolio, setPortfolio] = useState(EMPTY_PORTFOLIO);
+  const [activities, setActivities] = useState(EMPTY_ACTIVITIES);
+  const [recentlyDeleted, setRecentlyDeleted] = useState([]);
+  const [theme, setTheme] = useState("dark");
+  const [loadedUserId, setLoadedUserId] = useState(null);
 
   // ─── Non-persisted UI state ───
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -513,6 +497,62 @@ export default function Markd() {
   const [teamsUser, setTeamsUser] = useState(null);
   const [syncLog, setSyncLog] = useState([]);
   const [autoSync, setAutoSync] = useState(true);
+
+  useEffect(() => {
+    if (!userId) {
+      setSubjects(EMPTY_SUBJECTS);
+      setTasks(EMPTY_TASKS);
+      setDeadlines(EMPTY_DEADLINES);
+      setExams(EMPTY_EXAMS);
+      setPapers(EMPTY_PAPERS);
+      setGoals(EMPTY_GOALS);
+      setPortfolio(EMPTY_PORTFOLIO);
+      setActivities(EMPTY_ACTIVITIES);
+      setRecentlyDeleted([]);
+      setTheme("dark");
+      setLoadedUserId(null);
+      return;
+    }
+
+    setSubjects(readUserStorage(userId, "subjects", EMPTY_SUBJECTS));
+    setTasks(readUserStorage(userId, "tasks", EMPTY_TASKS));
+    setDeadlines(readUserStorage(userId, "deadlines", EMPTY_DEADLINES));
+    setExams(readUserStorage(userId, "exams", EMPTY_EXAMS));
+    setPapers(readUserStorage(userId, "papers", EMPTY_PAPERS));
+    setGoals(readUserStorage(userId, "goals", EMPTY_GOALS));
+    setPortfolio(readUserStorage(userId, "portfolio", EMPTY_PORTFOLIO));
+    setActivities(readUserStorage(userId, "activities", EMPTY_ACTIVITIES));
+    setRecentlyDeleted(readUserStorage(userId, "deleted", []));
+    setTheme(readUserStorage(userId, "theme", "dark"));
+    setLoadedUserId(userId);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || loadedUserId !== userId) return;
+    writeUserStorage(userId, "subjects", subjects);
+    writeUserStorage(userId, "tasks", tasks);
+    writeUserStorage(userId, "deadlines", deadlines);
+    writeUserStorage(userId, "exams", exams);
+    writeUserStorage(userId, "papers", papers);
+    writeUserStorage(userId, "goals", goals);
+    writeUserStorage(userId, "portfolio", portfolio);
+    writeUserStorage(userId, "activities", activities);
+    writeUserStorage(userId, "deleted", recentlyDeleted);
+    writeUserStorage(userId, "theme", theme);
+  }, [
+    activities,
+    deadlines,
+    exams,
+    goals,
+    loadedUserId,
+    papers,
+    portfolio,
+    recentlyDeleted,
+    subjects,
+    tasks,
+    theme,
+    userId,
+  ]);
   // ─── Auth ───
   const handleAuth = (session) => {
     setCurrentUser(session);

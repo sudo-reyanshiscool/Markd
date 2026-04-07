@@ -233,6 +233,28 @@ const DEFAULT_PORTFOLIO = [
   { id:"pf3", subjectId:"s6", title:"STEM Racing Mentorship", type:"Leadership", desc:"Mentoring younger students in STEM racing principles and team management.", tags:["mentoring","leadership","STEM"] },
 ];
 
+const DEFAULT_ACTIVITIES = [
+  {
+    id:"a1",
+    name:"STEM Racing / F1 in Schools",
+    role:"Team Principal & Design Engineer",
+    organisation:"Team SuperCharged",
+    desc:"Leading Team SuperCharged in the F1 in Schools competition. Designed and built our car 'Dasher' using CAD modelling, aerodynamic analysis, and CNC manufacturing. Also run a mentorship program for younger STEM racing teams.",
+    colour:"#6ab4f7",
+    hoursPerWeek:6,
+    events:[
+      { title:"Regional Qualifiers", date:"2026-05-15" },
+      { title:"National Finals", date:"2026-09-20" },
+    ],
+    achievements:[
+      "Designed 'Dasher' car from scratch using Fusion 360",
+      "Built mentorship program for STEM Racing teams",
+      "Led team of 6 across design, marketing, and engineering",
+    ],
+    tags:["F1 in Schools","CAD","engineering","leadership"],
+  },
+];
+
 const PAPER_LINKS = [
   { name:"AQA", url:"https://www.aqa.org.uk/find-past-papers-and-mark-schemes", desc:"Official AQA past papers and mark schemes" },
   { name:"Edexcel", url:"https://qualifications.pearson.com/en/support/support-topics/exams/past-papers.html", desc:"Pearson Edexcel past papers" },
@@ -266,6 +288,7 @@ const icons = {
   download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
   sync: "M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15",
   settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
+  trophy: "M6 9H4.5a2.5 2.5 0 0 1 0-5H6 M18 9h1.5a2.5 2.5 0 0 0 0-5H18 M4 22h16 M10 14.66V17c0 .55.47.98.97 1.21C12.15 18.75 13 20.24 13 22 M14 14.66V17c0 .55-.47.98-.97 1.21C11.85 18.75 11 20.24 11 22 M18 2H6v7a6 6 0 0 0 12 0V2z",
 };
 
 const NAV_ITEMS = [
@@ -276,6 +299,7 @@ const NAV_ITEMS = [
   { key:"exams", label:"Exams", icon:icons.clock },
   { key:"papers", label:"Papers", icon:icons.file },
   { key:"goals", label:"Goals", icon:icons.target },
+  { key:"activities", label:"Activities", icon:icons.trophy },
   { key:"portfolio", label:"Portfolio", icon:icons.briefcase },
 ];
 
@@ -292,6 +316,7 @@ export default function Markd() {
   const [papers, setPapers] = useState(DEFAULT_PAPERS);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [portfolio, setPortfolio] = useState(DEFAULT_PORTFOLIO);
+  const [activities, setActivities] = useState(DEFAULT_ACTIVITIES);
 
   // Paper sub-tab
   const [paperTab, setPaperTab] = useState("my");
@@ -319,6 +344,7 @@ export default function Markd() {
   const [teamsUser, setTeamsUser] = useState(null);
   const [syncLog, setSyncLog] = useState([]);
   const [autoSync, setAutoSync] = useState(true);
+  const [theme, setTheme] = useState("dark");
   const API_URL = "http://localhost:3001";
 
   // ─── Subject helpers ───
@@ -356,7 +382,8 @@ export default function Markd() {
   const fabAction = () => {
     const map = {
       home:null, subjects:"addSubject", tasks:"addTask", deadlines:"addDeadline",
-      exams:"addExam", papers:"addPaper", goals:"addGoal", portfolio:"addPortfolio"
+      exams:"addExam", papers:"addPaper", goals:"addGoal", portfolio:"addPortfolio",
+      activities:"addActivity"
     };
     const m = map[page];
     if (m) openModal(m);
@@ -679,6 +706,22 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
   const addPortfolio = () => {
     if (!form.title || !form.subjectId) return;
     setPortfolio(p => [...p, { id:uid(), subjectId:form.subjectId, title:form.title, type:form.type||"Project", desc:form.desc||"", tags:(form.tags||"").split(",").map(t=>t.trim()).filter(Boolean) }]);
+    setModal(null);
+  };
+  const addActivity = () => {
+    if (!form.name) return;
+    setActivities(a => [...a, {
+      id: uid(),
+      name: form.name,
+      role: form.role || "",
+      organisation: form.organisation || "",
+      desc: form.desc || "",
+      colour: form.colour || PALETTE[activities.length % PALETTE.length],
+      hoursPerWeek: Number(form.hoursPerWeek) || 0,
+      events: [],
+      achievements: (form.achievements || "").split("\n").map(s=>s.trim()).filter(Boolean),
+      tags: (form.tags || "").split(",").map(t=>t.trim()).filter(Boolean),
+    }]);
     setModal(null);
   };
 
@@ -1107,7 +1150,7 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
     </div>
     <div class="date">${today_str}</div>
   </div>
-  <div class="student-name">Reyansh Gupta</div>
+  <div class="student-name">Reyansh</div>
   <div class="student-school">The British School New Delhi</div>
   ${entries}
   <div class="footer">Generated by Markd</div>
@@ -1150,6 +1193,97 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
           )}
         </div>
       ))}
+    </div>
+  );
+
+  // ── ACTIVITIES ──
+  const renderActivities = () => (
+    <div className="page">
+      <h2 className="page-title">Activities</h2>
+      {activities.length === 0 && (
+        <div className="empty-state">Tap the + button to add an extracurricular activity.</div>
+      )}
+      {activities.map(a => {
+        const nextEvent = [...(a.events || [])]
+          .filter(e => e.date && daysUntil(e.date) >= 0)
+          .sort((x,y) => new Date(x.date) - new Date(y.date))[0];
+        return (
+          <div key={a.id} className="activity-card" style={{borderLeft:`4px solid ${a.colour}`}}>
+            <div className="activity-header">
+              <div style={{flex:1}}>
+                <div className="activity-name">{a.name}</div>
+                {a.organisation && <div className="activity-org">{a.organisation}</div>}
+                {a.role && <div className="activity-role" style={{color:a.colour}}>{a.role}</div>}
+              </div>
+              <DeleteBtn onClick={()=>setActivities(as=>as.filter(x=>x.id!==a.id))}/>
+            </div>
+
+            {a.desc && <div className="activity-desc">{a.desc}</div>}
+
+            <div className="activity-stats">
+              {a.hoursPerWeek > 0 && (
+                <div className="activity-stat">
+                  <span className="activity-stat-label">Hours / week</span>
+                  <span className="activity-stat-val" style={{color:a.colour}}>{a.hoursPerWeek}h</span>
+                </div>
+              )}
+              {nextEvent && (
+                <div className="activity-stat">
+                  <span className="activity-stat-label">Next event</span>
+                  <span className="activity-stat-val" style={{color:countdownColor(daysUntil(nextEvent.date))}}>
+                    {daysUntil(nextEvent.date)}d
+                  </span>
+                </div>
+              )}
+              {a.achievements?.length > 0 && (
+                <div className="activity-stat">
+                  <span className="activity-stat-label">Achievements</span>
+                  <span className="activity-stat-val">{a.achievements.length}</span>
+                </div>
+              )}
+            </div>
+
+            {a.events?.length > 0 && (
+              <div className="activity-section">
+                <div className="activity-section-label">Upcoming Events</div>
+                {a.events
+                  .filter(e => e.date && daysUntil(e.date) >= 0)
+                  .sort((x,y) => new Date(x.date) - new Date(y.date))
+                  .map((e,i) => {
+                    const d = daysUntil(e.date);
+                    return (
+                      <div key={i} className="activity-event">
+                        <div>
+                          <div className="activity-event-title">{e.title}</div>
+                          <div className="activity-event-date">{fmtDate(e.date)}</div>
+                        </div>
+                        <span className="badge" style={{background:countdownColor(d)+"22",color:countdownColor(d)}}>{d}d</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            {a.achievements?.length > 0 && (
+              <div className="activity-section">
+                <div className="activity-section-label">Achievements</div>
+                {a.achievements.map((ach,i) => (
+                  <div key={i} className="activity-achievement">
+                    <span className="activity-bullet" style={{background:a.colour}}/>
+                    <span>{ach}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {a.tags?.length > 0 && (
+              <div className="portfolio-tags">
+                {a.tags.map((tag,i) => <span key={i} className="tag-chip">{tag}</span>)}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 
@@ -1297,6 +1431,33 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
               </div>
             </div>
           )}
+
+          {/* Appearance */}
+          <div className="settings-section">
+            <div className="settings-section-title">Appearance</div>
+            <div className="theme-toggle-row">
+              <button
+                className={`theme-option ${theme === "dark" ? "active" : ""}`}
+                onClick={() => setTheme("dark")}
+              >
+                <div className="theme-preview dark-preview">
+                  <div className="theme-preview-bar"/>
+                  <div className="theme-preview-card"/>
+                </div>
+                <span>Dark</span>
+              </button>
+              <button
+                className={`theme-option ${theme === "light" ? "active" : ""}`}
+                onClick={() => setTheme("light")}
+              >
+                <div className="theme-preview light-preview">
+                  <div className="theme-preview-bar"/>
+                  <div className="theme-preview-card"/>
+                </div>
+                <span>Light</span>
+              </button>
+            </div>
+          </div>
 
           {/* Info */}
           <div className="settings-section">
@@ -1487,6 +1648,23 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
         <SubjectSelect/>
         <input className="modal-input" placeholder="Tags (comma-separated)" value={form.tags||""} onChange={e=>updateForm("tags",e.target.value)}/>
       </>);
+    } else if (modal === "addActivity") {
+      title = "Add Activity";
+      onSave = addActivity;
+      content = (<>
+        <input className="modal-input" placeholder="Activity name (e.g. Debate Club)" value={form.name||""} onChange={e=>updateForm("name",e.target.value)}/>
+        <input className="modal-input" placeholder="Organisation / Team name" value={form.organisation||""} onChange={e=>updateForm("organisation",e.target.value)}/>
+        <input className="modal-input" placeholder="Your role" value={form.role||""} onChange={e=>updateForm("role",e.target.value)}/>
+        <textarea className="modal-input modal-textarea" placeholder="Description" value={form.desc||""} onChange={e=>updateForm("desc",e.target.value)}/>
+        <input className="modal-input" type="number" placeholder="Hours per week" value={form.hoursPerWeek||""} onChange={e=>updateForm("hoursPerWeek",e.target.value)}/>
+        <textarea className="modal-input modal-textarea" placeholder="Achievements (one per line)" value={form.achievements||""} onChange={e=>updateForm("achievements",e.target.value)}/>
+        <input className="modal-input" placeholder="Tags (comma-separated)" value={form.tags||""} onChange={e=>updateForm("tags",e.target.value)}/>
+        <div className="colour-swatches">
+          {PALETTE.map(c => (
+            <button key={c} className={`swatch ${(form.colour||PALETTE[0])===c?"active":""}`} style={{background:c}} onClick={()=>updateForm("colour",c)}/>
+          ))}
+        </div>
+      </>);
     }
 
     return (
@@ -1504,7 +1682,7 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
   // ═══════════════════════════════════
   // MAIN RENDER
   // ═══════════════════════════════════
-  const pages = { home:renderHome, subjects:renderSubjects, tasks:renderTasks, deadlines:renderDeadlines, exams:renderExams, papers:renderPapers, goals:renderGoals, portfolio:renderPortfolio };
+  const pages = { home:renderHome, subjects:renderSubjects, tasks:renderTasks, deadlines:renderDeadlines, exams:renderExams, papers:renderPapers, goals:renderGoals, activities:renderActivities, portfolio:renderPortfolio };
 
   return (
     <>
@@ -1524,16 +1702,67 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
           --muted: #6b6b80;
         }
 
+        .markd-app.light-theme {
+          --bg: #fafafe;
+          --surface: #ffffff;
+          --surface2: #f3f3fa;
+          --border: #e2e2ec;
+          --accent: #6b54f5;
+          --accent2: #e8801f;
+          --accent3: #2bbd8a;
+          --danger: #e53e3e;
+          --text: #1a1a24;
+          --muted: #6b6b80;
+        }
+        .markd-app.light-theme { background: var(--bg); color: var(--text); }
+        .markd-app.light-theme .top-bar { background: var(--bg); }
+        .markd-app.light-theme .logo { color: var(--text); }
+        .markd-app.light-theme .next-exam-card {
+          background: linear-gradient(135deg, #ffffff 0%, #f3f3fa 100%);
+        }
+        .markd-app.light-theme .stat-card,
+        .markd-app.light-theme .list-item,
+        .markd-app.light-theme .subject-mini,
+        .markd-app.light-theme .subject-card,
+        .markd-app.light-theme .exam-card,
+        .markd-app.light-theme .paper-card,
+        .markd-app.light-theme .portfolio-card,
+        .markd-app.light-theme .activity-card,
+        .markd-app.light-theme .mvt-card,
+        .markd-app.light-theme .goals-overview,
+        .markd-app.light-theme .link-card,
+        .markd-app.light-theme .browse-item {
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+        .markd-app.light-theme .modal-overlay { background: rgba(0,0,0,0.4); }
+        .markd-app.light-theme .ai-bubble.assistant {
+          background: var(--surface2);
+          color: var(--text);
+        }
+        .markd-app.light-theme .task-check { color: white; }
+        .markd-app.light-theme .ai-trigger {
+          background: rgba(107,84,245,0.1);
+          border-color: rgba(107,84,245,0.3);
+        }
+        .markd-app.light-theme .fab {
+          box-shadow: 0 4px 20px rgba(107,84,245,0.35);
+        }
+
         * { margin:0; padding:0; box-sizing:border-box; }
         html, body { height: 100%; background: var(--bg); }
 
         .markd-app {
-  width: 100%;
-  min-height: 100dvh;
-  background: var(--bg);
-  display: flex;
-  flex-direction: column;
-}
+          width: 100%;
+          min-height: 100vh;
+          min-height: 100dvh;
+          background: var(--bg);
+          color: var(--text);
+          font-family: 'DM Mono', monospace;
+          font-size: 13px;
+          position: relative;
+          display: flex;
+          flex-direction: column;
+        }
 
         /* ── Top Bar ── */
         .top-bar {
@@ -2137,6 +2366,50 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
         }
         .browse-switch:hover { opacity: 1; }
 
+        /* ── Activities ── */
+        .activity-card {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          padding: 18px;
+          margin-bottom: 12px;
+        }
+        .activity-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .activity-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 17px; }
+        .activity-org { font-size: 11px; color: var(--muted); margin-top: 2px; }
+        .activity-role { font-size: 12px; font-weight: 500; margin-top: 4px; }
+        .activity-desc { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 14px; }
+        .activity-stats {
+          display: flex; gap: 18px;
+          padding: 12px 0;
+          border-top: 1px solid var(--border);
+          border-bottom: 1px solid var(--border);
+          margin-bottom: 14px;
+        }
+        .activity-stat { display: flex; flex-direction: column; gap: 2px; }
+        .activity-stat-label { font-size: 10px; color: var(--muted); }
+        .activity-stat-val { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; }
+        .activity-section { margin-bottom: 14px; }
+        .activity-section-label {
+          font-family: 'Syne', sans-serif; font-weight: 600;
+          font-size: 11px; color: var(--muted);
+          text-transform: uppercase; letter-spacing: 1px;
+          margin-bottom: 8px;
+        }
+        .activity-event {
+          display: flex; justify-content: space-between; align-items: center;
+          padding: 8px 10px; background: var(--surface2);
+          border-radius: 8px; margin-bottom: 6px;
+        }
+        .activity-event-title { font-size: 13px; }
+        .activity-event-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+        .activity-achievement {
+          display: flex; align-items: flex-start; gap: 8px;
+          font-size: 12px; color: var(--text); padding: 4px 0;
+          line-height: 1.5;
+        }
+        .activity-bullet { width: 6px; height: 6px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+
         /* ── Delete btn ── */
         .delete-btn {
           background: none;
@@ -2525,9 +2798,34 @@ Key context: Reyansh is part of Team SuperCharged in F1 in Schools, their car is
           color: var(--muted); padding: 2px 0;
         }
         .settings-info-row span:last-child { color: var(--text); font-weight: 500; }
+
+        /* ── Theme toggle ── */
+        .theme-toggle-row { display: flex; gap: 10px; }
+        .theme-option {
+          flex: 1; display: flex; flex-direction: column;
+          align-items: center; gap: 8px;
+          padding: 12px; border-radius: 10px;
+          background: var(--surface2); border: 2px solid var(--border);
+          color: var(--muted); font-family: 'DM Mono', monospace; font-size: 12px;
+          cursor: pointer; transition: border-color 0.2s, color 0.2s;
+        }
+        .theme-option:hover { border-color: var(--muted); }
+        .theme-option.active { border-color: var(--accent); color: var(--text); }
+        .theme-preview {
+          width: 100%; height: 56px; border-radius: 6px;
+          padding: 6px; display: flex; flex-direction: column; gap: 4px;
+        }
+        .dark-preview { background: #0a0a0f; border: 1px solid #2a2a38; }
+        .light-preview { background: #fafafe; border: 1px solid #e2e2ec; }
+        .theme-preview-bar { height: 8px; border-radius: 2px; }
+        .dark-preview .theme-preview-bar { background: #7c6af7; }
+        .light-preview .theme-preview-bar { background: #6b54f5; }
+        .theme-preview-card { flex: 1; border-radius: 4px; }
+        .dark-preview .theme-preview-card { background: #1a1a24; }
+        .light-preview .theme-preview-card { background: #ffffff; border: 1px solid #e2e2ec; }
       `}</style>
 
-      <div className="markd-app">
+      <div className={`markd-app ${theme === "light" ? "light-theme" : ""}`}>
         {/* Top bar */}
         <div className="top-bar">
           <div className="logo">Markd<span className="logo-dot"/></div>

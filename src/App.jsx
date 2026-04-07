@@ -1,4 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+// ─── localStorage hook ───
+function useLocalStorage(key, defaultValue) {
+  const [state, setState] = useState(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored !== null ? JSON.parse(stored) : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(state));
+    } catch {}
+  }, [key, state]);
+
+  return [state, setState];
+}
 
 // ─── Colour palette for subjects ───
 const PALETTE = [
@@ -297,7 +317,6 @@ const NAV_ITEMS = [
   { key:"portfolio", label:"Portfolio", icon:icons.briefcase },
 ];
 
-// ─── Type labels for recently deleted ───
 const TYPE_LABELS = {
   subject: "Subject",
   task: "Task",
@@ -315,24 +334,42 @@ const TYPE_LABELS = {
 export default function Markd() {
   const [page, setPage] = useState("home");
   const [modal, setModal] = useState(null);
-  const [subjects, setSubjects] = useState(DEFAULT_SUBJECTS);
-  const [tasks, setTasks] = useState(DEFAULT_TASKS);
-  const [deadlines, setDeadlines] = useState(DEFAULT_DEADLINES);
-  const [exams, setExams] = useState(DEFAULT_EXAMS);
-  const [papers, setPapers] = useState(DEFAULT_PAPERS);
-  const [goals, setGoals] = useState(DEFAULT_GOALS);
-  const [portfolio, setPortfolio] = useState(DEFAULT_PORTFOLIO);
-  const [activities, setActivities] = useState(DEFAULT_ACTIVITIES);
 
-  // ─── Recently deleted (max 10) ───
-  const [recentlyDeleted, setRecentlyDeleted] = useState([]);
+  // ─── All persisted state via useLocalStorage ───
+  const [subjects, setSubjects] = useLocalStorage("markd_subjects", DEFAULT_SUBJECTS);
+  const [tasks, setTasks] = useLocalStorage("markd_tasks", DEFAULT_TASKS);
+  const [deadlines, setDeadlines] = useLocalStorage("markd_deadlines", DEFAULT_DEADLINES);
+  const [exams, setExams] = useLocalStorage("markd_exams", DEFAULT_EXAMS);
+  const [papers, setPapers] = useLocalStorage("markd_papers", DEFAULT_PAPERS);
+  const [goals, setGoals] = useLocalStorage("markd_goals", DEFAULT_GOALS);
+  const [portfolio, setPortfolio] = useLocalStorage("markd_portfolio", DEFAULT_PORTFOLIO);
+  const [activities, setActivities] = useLocalStorage("markd_activities", DEFAULT_ACTIVITIES);
+  const [recentlyDeleted, setRecentlyDeleted] = useLocalStorage("markd_deleted", []);
+  const [theme, setTheme] = useLocalStorage("markd_theme", "dark");
 
-  // ─── Confirm dialog state ───
+  // ─── Non-persisted UI state ───
   const [confirmDialog, setConfirmDialog] = useState(null);
-  // confirmDialog = { message, onConfirm }
-
-  // ─── Reset confirmation state ───
-  const [resetStep, setResetStep] = useState(0); // 0=idle, 1=first confirm, 2=second confirm
+  const [resetStep, setResetStep] = useState(0);
+  const [paperTab, setPaperTab] = useState("my");
+  const [goalTab, setGoalTab] = useState("goals");
+  const [goalHorizon, setGoalHorizon] = useState("3 months");
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiMessages, setAiMessages] = useState([]);
+  const [aiInput, setAiInput] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [browseCurriculum, setBrowseCurriculum] = useState("GCSE");
+  const [browseSelected, setBrowseSelected] = useState(new Set());
+  const [browseSearch, setBrowseSearch] = useState("");
+  const [subjectTab, setSubjectTab] = useState("browse");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("general");
+  const [teamsConnected, setTeamsConnected] = useState(false);
+  const [teamsSyncing, setTeamsSyncing] = useState(false);
+  const [teamsLastSync, setTeamsLastSync] = useState(null);
+  const [teamsUser, setTeamsUser] = useState(null);
+  const [syncLog, setSyncLog] = useState([]);
+  const [autoSync, setAutoSync] = useState(true);
+  const API_URL = "http://localhost:3001";
 
   const pushDeleted = (type, item, label) => {
     const entry = {
@@ -358,7 +395,6 @@ export default function Markd() {
     setRecentlyDeleted(prev => prev.filter(e => e.id !== entry.id));
   };
 
-  // ─── Generic confirm-then-delete ───
   const confirmDelete = (message, onConfirm) => {
     setConfirmDialog({ message, onConfirm });
   };
@@ -420,7 +456,6 @@ export default function Markd() {
     });
   };
 
-  // ─── Reset all data ───
   const resetAllData = () => {
     setSubjects(DEFAULT_SUBJECTS);
     setTasks(DEFAULT_TASKS);
@@ -433,36 +468,6 @@ export default function Markd() {
     setRecentlyDeleted([]);
     setResetStep(0);
   };
-
-  // Paper sub-tab
-  const [paperTab, setPaperTab] = useState("my");
-  // Goals sub-tab
-  const [goalTab, setGoalTab] = useState("goals");
-  const [goalHorizon, setGoalHorizon] = useState("3 months");
-
-  // AI assistant state
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiMessages, setAiMessages] = useState([]);
-  const [aiInput, setAiInput] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-
-  // Browse subjects state
-  const [browseCurriculum, setBrowseCurriculum] = useState("GCSE");
-  const [browseSelected, setBrowseSelected] = useState(new Set());
-  const [browseSearch, setBrowseSearch] = useState("");
-  const [subjectTab, setSubjectTab] = useState("browse");
-
-  // Settings state
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState("general"); // "general" | "deleted"
-  const [teamsConnected, setTeamsConnected] = useState(false);
-  const [teamsSyncing, setTeamsSyncing] = useState(false);
-  const [teamsLastSync, setTeamsLastSync] = useState(null);
-  const [teamsUser, setTeamsUser] = useState(null);
-  const [syncLog, setSyncLog] = useState([]);
-  const [autoSync, setAutoSync] = useState(true);
-  const [theme, setTheme] = useState("dark");
-  const API_URL = "http://localhost:3001";
 
   // ─── Subject helpers ───
   const sub = (id) => subjects.find(s => s.id === id);
@@ -721,7 +726,6 @@ export default function Markd() {
     return groups;
   };
 
-  // ─── DeleteBtn using confirmDelete ───
   const DeleteBtn = ({ onClick }) => (
     <button className="delete-btn" onClick={(e)=>{e.stopPropagation();onClick();}} aria-label="Delete">
       <Icon d={icons.trash} size={16} color="var(--muted)"/>
@@ -1173,7 +1177,6 @@ export default function Markd() {
             <span className="settings-title">Settings</span>
           </div>
 
-          {/* Settings tabs */}
           <div className="tab-row" style={{marginBottom:16}}>
             <button className={`tab-btn ${settingsTab==="general"?"active":""}`} onClick={()=>setSettingsTab("general")}>General</button>
             <button className={`tab-btn ${settingsTab==="deleted"?"active":""}`} onClick={()=>setSettingsTab("deleted")}>
@@ -1182,7 +1185,6 @@ export default function Markd() {
           </div>
 
           {settingsTab === "general" ? (<>
-            {/* Profile */}
             <div className="settings-section">
               <div className="settings-profile">
                 <div className="settings-avatar">R</div>
@@ -1193,7 +1195,6 @@ export default function Markd() {
               </div>
             </div>
 
-            {/* Teams */}
             <div className="settings-section">
               <div className="settings-section-title">Microsoft Teams</div>
               {!teamsConnected ? (
@@ -1210,7 +1211,6 @@ export default function Markd() {
               )}
             </div>
 
-            {/* Sync log */}
             {syncLog.length > 0 && (
               <div className="settings-section">
                 <div className="settings-section-title">Sync Log</div>
@@ -1218,7 +1218,6 @@ export default function Markd() {
               </div>
             )}
 
-            {/* Appearance */}
             <div className="settings-section">
               <div className="settings-section-title">Appearance</div>
               <div className="theme-toggle-row">
@@ -1233,7 +1232,6 @@ export default function Markd() {
               </div>
             </div>
 
-            {/* Data stats */}
             <div className="settings-section">
               <div className="settings-section-title">About</div>
               <div className="settings-info">
@@ -1245,7 +1243,6 @@ export default function Markd() {
               </div>
             </div>
 
-            {/* Reset */}
             <div className="settings-section">
               <div className="settings-section-title">Danger Zone</div>
               {resetStep === 0 && (
@@ -1271,7 +1268,6 @@ export default function Markd() {
               )}
             </div>
           </>) : (
-            /* Recently Deleted tab */
             <div>
               {recentlyDeleted.length === 0 ? (
                 <div className="empty-state" style={{paddingTop:40}}>Nothing recently deleted.</div>
@@ -1665,21 +1661,7 @@ export default function Markd() {
         .theme-preview-card { flex:1; border-radius:4px; }
         .dark-preview .theme-preview-card { background:#1a1a24; }
         .light-preview .theme-preview-card { background:#ffffff; border:1px solid #e2e2ec; }
-
-        /* ── Confirm dialog ── */
-        .confirm-dialog {
-          width: calc(100% - 48px);
-          max-width: 360px;
-          background: var(--surface);
-          border-radius: 18px;
-          padding: 24px 20px 20px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 10px;
-          animation: scaleIn 0.2s ease;
-          margin-bottom: 30vh;
-        }
+        .confirm-dialog { width:calc(100% - 48px); max-width:360px; background:var(--surface); border-radius:18px; padding:24px 20px 20px; display:flex; flex-direction:column; align-items:center; gap:10px; animation:scaleIn 0.2s ease; margin-bottom:30vh; }
         @keyframes scaleIn { from { transform:scale(0.92); opacity:0; } to { transform:scale(1); opacity:1; } }
         .confirm-icon { width:48px; height:48px; border-radius:50%; background:rgba(247,106,106,0.12); display:flex; align-items:center; justify-content:center; margin-bottom:4px; }
         .confirm-message { font-family:'Syne',sans-serif; font-weight:600; font-size:15px; text-align:center; color:var(--text); }
@@ -1689,8 +1671,6 @@ export default function Markd() {
         .confirm-cancel:hover { background:var(--border); }
         .confirm-delete { flex:1; padding:11px; border-radius:10px; border:none; background:var(--danger); color:white; font-family:'Syne',sans-serif; font-weight:700; font-size:13px; cursor:pointer; transition:opacity 0.2s; }
         .confirm-delete:hover { opacity:0.85; }
-
-        /* ── Recently deleted ── */
         .deleted-badge { background:var(--danger); color:white; font-size:10px; padding:1px 6px; border-radius:10px; font-weight:700; }
         .deleted-item { display:flex; align-items:center; gap:12px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:8px; }
         .deleted-item-type { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:2px; }
@@ -1698,8 +1678,6 @@ export default function Markd() {
         .deleted-item-time { font-size:10px; color:var(--muted); margin-top:2px; }
         .restore-btn { display:flex; align-items:center; gap:5px; padding:7px 12px; border-radius:8px; border:1px solid rgba(124,106,247,0.3); background:rgba(124,106,247,0.08); color:var(--accent); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; white-space:nowrap; transition:background 0.2s; flex-shrink:0; }
         .restore-btn:hover { background:rgba(124,106,247,0.16); }
-
-        /* ── Reset button ── */
         .reset-btn { width:100%; padding:11px; border-radius:10px; border:1px solid rgba(247,106,106,0.3); background:rgba(247,106,106,0.07); color:var(--danger); font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; transition:background 0.2s; }
         .reset-btn:hover { background:rgba(247,106,106,0.14); }
         .reset-confirm-box { background:var(--surface2); border:1px solid rgba(247,106,106,0.25); border-radius:12px; padding:14px; }

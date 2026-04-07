@@ -873,7 +873,7 @@ export default function Markd() {
   };
 
   const fabAction = () => {
-    const map = { home:null,subjects:"addSubject",tasks:"addTask",deadlines:"addDeadline",exams:"addExam",papers:"addPaper",goals:"addGoal",portfolio:"addPortfolio",activities:"addActivity" };
+    const map = { home:null,subjects:"addSubject",tasks:"addTask",deadlines:"addDeadline",exams:"examActions",papers:"addPaper",goals:"addGoal",portfolio:"addPortfolio",activities:"addActivity" };
     const m = map[page];
     if (m) openModal(m);
   };
@@ -1208,23 +1208,10 @@ export default function Markd() {
 
   const renderExams = () => {
     const sorted = [...exams].sort((a,b)=>new Date(a.date)-new Date(b.date));
-    const calendarSyncLabel = calendarLastSync ? new Date(calendarLastSync).toLocaleString("en-GB",{ day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : null;
     return (
       <div className="page">
         <h2 className="page-title">Exams</h2>
-        <div className="calendar-sync-card">
-          <div className="calendar-sync-title">Assessment Calendar Feed</div>
-          <div className="calendar-sync-sub">Please open the school calendar link (in the format calendar.online). In the top right corner, click the options menu and select “Export as Calendar Feed.” Copy the first link provided and paste it here.</div>
-          <input className="modal-input" placeholder="webcal://... or https://...ics" value={calendarInput} onChange={e=>setCalendarInput(e.target.value)} />
-          <div className="calendar-sync-actions">
-            <button className="calendar-sync-btn" onClick={()=>syncOutlookCalendar(calendarInput, true)} disabled={calendarSyncing}>{calendarSyncing ? "Syncing..." : outlookCalendarUrl ? "Save & Re-sync" : "Save & Sync"}</button>
-            {outlookCalendarUrl && <button className="calendar-secondary-btn" onClick={()=>syncOutlookCalendar(outlookCalendarUrl, false)} disabled={calendarSyncing}>Sync Now</button>}
-            {outlookCalendarUrl && <button className="calendar-secondary-btn danger" onClick={disconnectOutlookCalendar} disabled={calendarSyncing}>Disconnect</button>}
-          </div>
-          {calendarSyncLabel && <div className="calendar-sync-meta">Last synced {calendarSyncLabel}</div>}
-          {calendarSyncError && <div className="calendar-sync-error">{calendarSyncError}</div>}
-        </div>
-        {exams.length === 0 ? <EmptyState icon={icons.clock} message="No exams yet. Add one manually or sync your Outlook assessment calendar above." action={()=>openModal("addExam")} actionLabel="Add Exam"/> :
+        {exams.length === 0 ? <EmptyState icon={icons.clock} message="No exams yet. Tap + to add one manually or import your assessment calendar." action={()=>openModal("examActions")} actionLabel="Add to Exams"/> :
         sorted.map(ex => { const d=daysUntil(ex.date); return (
           <div key={ex.id} className="exam-card" style={{borderLeft:`4px solid ${subColour(ex.subjectId)}`}}>
             <div style={{flex:1}}><div className="exam-name">{ex.name}</div><div className="exam-board">{ex.board}</div><div className="exam-date">{fmtDate(ex.date)}</div></div>
@@ -1485,7 +1472,8 @@ export default function Markd() {
   const renderModal = () => {
     if (!modal) return null;
     const SubjectSelect = () => (<select className="modal-input" value={form.subjectId||""} onChange={e=>updateForm("subjectId",e.target.value)}><option value="">Select subject</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>);
-    let title="", content=null, onSave=null, saveLabel="Save";
+    const calendarSyncLabel = calendarLastSync ? new Date(calendarLastSync).toLocaleString("en-GB",{ day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : null;
+    let title="", content=null, onSave=null, saveLabel="Save", showSave=true;
 
     if (modal==="addSubject") {
       title="Add Subjects";
@@ -1518,6 +1506,37 @@ export default function Markd() {
     } else if (modal==="addTask") { title="Add Task"; onSave=addTask; content=(<><input className="modal-input" placeholder="Task description" value={form.text||""} onChange={e=>updateForm("text",e.target.value)}/><SubjectSelect/></>); }
     else if (modal==="addDeadline") { title="Add Deadline"; onSave=addDeadline; content=(<><input className="modal-input" placeholder="Deadline title" value={form.title||""} onChange={e=>updateForm("title",e.target.value)}/><SubjectSelect/><input className="modal-input" type="date" value={form.date||""} onChange={e=>updateForm("date",e.target.value)}/></>); }
     else if (modal==="addExam") { title="Add Exam"; onSave=addExam; content=(<><input className="modal-input" placeholder="Exam name" value={form.name||""} onChange={e=>updateForm("name",e.target.value)}/><SubjectSelect/><select className="modal-input" value={form.board||""} onChange={e=>updateForm("board",e.target.value)}><option value="">Exam board</option>{EXAM_BOARDS.map(b=><option key={b} value={b}>{b}</option>)}</select><input className="modal-input" type="date" value={form.date||""} onChange={e=>updateForm("date",e.target.value)}/></>); }
+    else if (modal==="examActions") {
+      title="Add to Exams";
+      showSave=false;
+      content=(<div className="exam-action-grid">
+        <button className="exam-action-card" onClick={()=>setModal("addExam")}>
+          <div className="exam-action-icon"><Icon d={icons.clock} size={20} color="var(--accent)"/></div>
+          <div className="exam-action-title">Add exam manually</div>
+          <div className="exam-action-copy">Create a single exam with subject, board, and date.</div>
+        </button>
+        <button className="exam-action-card" onClick={()=>setModal("importExamFeed")}>
+          <div className="exam-action-icon"><Icon d={icons.sync} size={20} color="var(--accent2)"/></div>
+          <div className="exam-action-title">Import assessment calendar</div>
+          <div className="exam-action-copy">Paste your published school calendar feed and pull upcoming assessments into Exams.</div>
+        </button>
+      </div>);
+    }
+    else if (modal==="importExamFeed") {
+      title="Assessment Calendar Feed";
+      showSave=false;
+      content=(<>
+        <div className="calendar-sync-sub">Please open the school calendar link (in the format calendar.online). In the top right corner, click the options menu and select “Export as Calendar Feed.” Copy the first link provided and paste it here.</div>
+        <input className="modal-input" placeholder="webcal://... or https://...ics" value={calendarInput} onChange={e=>setCalendarInput(e.target.value)} />
+        <div className="calendar-sync-actions">
+          <button className="calendar-sync-btn" onClick={()=>syncOutlookCalendar(calendarInput, true)} disabled={calendarSyncing}>{calendarSyncing ? "Syncing..." : outlookCalendarUrl ? "Save & Re-sync" : "Save & Sync"}</button>
+          {outlookCalendarUrl && <button className="calendar-secondary-btn" onClick={()=>syncOutlookCalendar(outlookCalendarUrl, false)} disabled={calendarSyncing}>Sync Now</button>}
+          {outlookCalendarUrl && <button className="calendar-secondary-btn danger" onClick={disconnectOutlookCalendar} disabled={calendarSyncing}>Disconnect</button>}
+        </div>
+        {calendarSyncLabel && <div className="calendar-sync-meta">Last synced {calendarSyncLabel}</div>}
+        {calendarSyncError && <div className="calendar-sync-error">{calendarSyncError}</div>}
+      </>);
+    }
     else if (modal==="addPaper") { title="Add Past Paper"; onSave=addPaper; content=(<><SubjectSelect/><input className="modal-input" placeholder="Paper title" value={form.title||""} onChange={e=>updateForm("title",e.target.value)}/><input className="modal-input" placeholder="Year (e.g. 2024)" value={form.year||""} onChange={e=>updateForm("year",e.target.value)}/><input className="modal-input" placeholder="Paper number" value={form.paper||""} onChange={e=>updateForm("paper",e.target.value)}/><div style={{display:"flex",gap:8}}><input className="modal-input" placeholder="Marks scored" type="number" value={form.scored||""} onChange={e=>updateForm("scored",e.target.value)} style={{flex:1}}/><input className="modal-input" placeholder="Total marks" type="number" value={form.total||""} onChange={e=>updateForm("total",e.target.value)} style={{flex:1}}/></div></>); }
     else if (modal==="addGoal") { title="Add Goal"; onSave=addGoal; content=(<><input className="modal-input" placeholder="Goal description" value={form.text||""} onChange={e=>updateForm("text",e.target.value)}/><select className="modal-input" value={form.horizon||"3 months"} onChange={e=>updateForm("horizon",e.target.value)}>{HORIZONS.map(h=><option key={h} value={h}>{h}</option>)}</select><select className="modal-input" value={form.subjectId||""} onChange={e=>updateForm("subjectId",e.target.value)}><option value="">No subject (optional)</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></>); }
     else if (modal==="addPortfolio") { title="Add Portfolio Entry"; onSave=addPortfolio; content=(<><input className="modal-input" placeholder="Title" value={form.title||""} onChange={e=>updateForm("title",e.target.value)}/><textarea className="modal-input modal-textarea" placeholder="Description" value={form.desc||""} onChange={e=>updateForm("desc",e.target.value)}/><select className="modal-input" value={form.type||"Project"} onChange={e=>updateForm("type",e.target.value)}>{PORTFOLIO_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select><SubjectSelect/><input className="modal-input" placeholder="Tags (comma-separated)" value={form.tags||""} onChange={e=>updateForm("tags",e.target.value)}/></>); }
@@ -1529,7 +1548,7 @@ export default function Markd() {
           <div className="modal-handle"/>
           <div className="modal-title">{title}</div>
           <div className="modal-body">{content}</div>
-          <button className="modal-save" onClick={onSave}>{saveLabel}</button>
+          {showSave && <button className="modal-save" onClick={onSave}>{saveLabel}</button>}
         </div>
       </div>
     );
@@ -1672,6 +1691,12 @@ export default function Markd() {
         .calendar-sync-title { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; margin-bottom:6px; }
         .calendar-sync-sub { font-size:11px; color:var(--muted); line-height:1.5; margin-bottom:12px; }
         .calendar-sync-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+        .exam-action-grid { display:grid; gap:10px; }
+        .exam-action-card { width:100%; text-align:left; background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:16px; color:var(--text); cursor:pointer; transition:transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease; }
+        .exam-action-card:hover { transform:translateY(-3px); border-color:rgba(124,106,247,0.3); box-shadow:0 14px 24px rgba(0,0,0,0.16); }
+        .exam-action-icon { width:38px; height:38px; border-radius:10px; background:rgba(124,106,247,0.08); display:flex; align-items:center; justify-content:center; margin-bottom:10px; }
+        .exam-action-title { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; margin-bottom:6px; }
+        .exam-action-copy { font-size:11px; color:var(--muted); line-height:1.6; }
         .calendar-sync-btn { padding:10px 14px; border-radius:8px; border:none; background:var(--accent); color:white; font-family:'Syne',sans-serif; font-weight:700; font-size:12px; cursor:pointer; transition:transform 0.2s ease, filter 0.2s ease; }
         .calendar-sync-btn:disabled { opacity:0.5; cursor:default; }
         .calendar-sync-btn:hover:not(:disabled), .calendar-secondary-btn:hover:not(:disabled), .logout-btn:hover, .teams-connect-btn:hover, .teams-sync-btn:hover:not(:disabled), .teams-disconnect-btn:hover, .restore-btn:hover, .empty-state-btn:hover, .export-btn:hover, .modal-save:hover, .ai-trigger:hover { transform:translateY(-2px); }

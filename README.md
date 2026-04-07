@@ -1,16 +1,54 @@
-# React + Vite
+# Markd
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Markd is a React + Vite student organiser for subjects, deadlines, tasks, exams, past papers, goals, activities, portfolio tracking, calendar-feed imports, and an AI study assistant.
 
-Currently, two official plugins are available:
+## Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. Install dependencies:
 
-## React Compiler
+```bash
+npm install
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+2. Create a `.env` file from `.env.example`.
 
-## Expanding the ESLint configuration
+3. Create a Supabase project and add:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```env
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+```
+
+4. In Supabase SQL Editor, run [supabase/schema.sql](/Users/rg/my-app/supabase/schema.sql).
+
+5. Add a Google AI Studio API key if you want the AI assistant:
+
+```env
+GEMINI_API_KEY=...
+```
+
+Optional:
+
+```env
+GEMMA_MODEL=gemma-4-31b-it
+```
+
+6. Start the app:
+
+```bash
+npm run dev
+```
+
+## Build
+
+```bash
+npm run build
+```
+
+## Notes
+
+- Auth and saved data now use Supabase instead of browser-only app storage.
+- Existing local browser data is imported automatically the first time a matching user signs in with the same email and the cloud workspace is still empty.
+- Teams sync still requires a separate backend via `VITE_API_URL`.
+- Calendar import expects a published feed URL. For `calendar.online` / `kalender.digital`, open the school link, use the top-right options menu, choose `Export as Calendar Feed`, then paste the first link into the app.
+- The AI assistant uses hosted Gemma through the Google Gemini API proxy in [api/ai.js](/Users/rg/my-app/api/ai.js).

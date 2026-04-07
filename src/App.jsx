@@ -993,7 +993,7 @@ export default function Markd() {
         <h2 className="page-title">Exams</h2>
         <div className="calendar-sync-card">
           <div className="calendar-sync-title">Assessment Calendar Feed</div>
-          <div className="calendar-sync-sub">Go to the link provided by school in the format calendar.online, on the top right press the options menu, and export as a calendar feed, and copy the first link, and paste it here.</div>
+          <div className="calendar-sync-sub">Please open the school calendar link (in the format calendar.online). In the top right corner, click the options menu and select “Export as Calendar Feed.” Copy the first link provided and paste it here.</div>
           <input className="modal-input" placeholder="webcal://... or https://...ics" value={calendarInput} onChange={e=>setCalendarInput(e.target.value)} />
           <div className="calendar-sync-actions">
             <button className="calendar-sync-btn" onClick={()=>syncOutlookCalendar(calendarInput, true)} disabled={calendarSyncing}>{calendarSyncing ? "Syncing..." : outlookCalendarUrl ? "Save & Re-sync" : "Save & Sync"}</button>

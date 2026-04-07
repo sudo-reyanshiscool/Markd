@@ -781,7 +781,7 @@ export default function Markd() {
       setCalendarInput(calendarUrl);
       setCalendarLastSync(new Date().toISOString());
       if (nextImportedExams.length === 0) {
-        setCalendarSyncError("The calendar synced, but there were no upcoming assessments to import.");
+        setCalendarSyncError("The calendar synced, but no future assessments were found in the published feed.");
       }
     } catch (error) {
       setCalendarSyncError(error instanceof Error ? error.message : "Calendar sync failed.");
@@ -993,8 +993,8 @@ export default function Markd() {
         <h2 className="page-title">Exams</h2>
         <div className="calendar-sync-card">
           <div className="calendar-sync-title">Outlook Assessment Calendar</div>
-          <div className="calendar-sync-sub">Paste your Outlook shared calendar link and Markd will import upcoming assessments into this tab.</div>
-          <input className="modal-input" placeholder="https://outlook.office.com/..." value={calendarInput} onChange={e=>setCalendarInput(e.target.value)} />
+          <div className="calendar-sync-sub">Paste your Outlook published ICS or webcal link. If you paste the browser page, Markd will try to find the feed automatically.</div>
+          <input className="modal-input" placeholder="webcal://... or https://...ics" value={calendarInput} onChange={e=>setCalendarInput(e.target.value)} />
           <div className="calendar-sync-actions">
             <button className="calendar-sync-btn" onClick={()=>syncOutlookCalendar(calendarInput, true)} disabled={calendarSyncing}>{calendarSyncing ? "Syncing..." : outlookCalendarUrl ? "Save & Re-sync" : "Save & Sync"}</button>
             {outlookCalendarUrl && <button className="calendar-secondary-btn" onClick={()=>syncOutlookCalendar(outlookCalendarUrl, false)} disabled={calendarSyncing}>Sync Now</button>}

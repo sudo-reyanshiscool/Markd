@@ -35,7 +35,7 @@ const clearSession = () => {
 // ─── Per-user localStorage hook (race-condition-free) ───
 function useUserStorage(userId, key, defaultValue) {
   const fullKey = userId ? `markd_${userId}_${key}` : null;
-  const skipNextWrite = useRef(true);
+  const hydratedKeyRef = useRef(fullKey);
 
   const [state, setState] = useState(() => {
     if (typeof window === "undefined") return defaultValue;
@@ -50,19 +50,20 @@ function useUserStorage(userId, key, defaultValue) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!fullKey) return;
-    if (skipNextWrite.current) { skipNextWrite.current = false; return; }
+    if (hydratedKeyRef.current !== fullKey) return;
     try { localStorage.setItem(fullKey, JSON.stringify(state)); } catch {}
   }, [fullKey, state]);
 
   // Re-hydrate when userId changes (login/logout)
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!fullKey) return;
-    skipNextWrite.current = true;
+    hydratedKeyRef.current = null;
+    if (!fullKey) { setState(defaultValue); return; }
     try {
       const stored = localStorage.getItem(fullKey);
       setState(stored !== null ? JSON.parse(stored) : defaultValue);
     } catch { setState(defaultValue); }
+    hydratedKeyRef.current = fullKey;
   }, [defaultValue, fullKey]);
 
   return [state, setState];

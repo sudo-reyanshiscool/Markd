@@ -13,7 +13,7 @@ const isPrivateHostname = (hostname) => {
 };
 
 const unfoldICalLines = (content) => {
-  const rows = content.replace(/\r\n/g, "\n").split("\n");
+  const rows = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
   return rows.reduce((lines, row) => {
     if ((row.startsWith(" ") || row.startsWith("\t")) && lines.length > 0) {
       lines[lines.length - 1] += row.slice(1);
@@ -37,18 +37,98 @@ const parseICalDate = (value) => {
   return `${match[1]}-${match[2]}-${match[3]}`;
 };
 
+const escapeHtmlEntities = (value = "") =>
+  value
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+
+const looksLikeHtml = (contentType = "", content = "") =>
+  /text\/html|application\/xhtml\+xml/i.test(contentType) ||
+  /^\s*<!doctype html/i.test(content) ||
+  /^\s*<html/i.test(content);
+
+const pickCalendarFeedUrl = (html, baseUrl) => {
+  const candidates = new Set();
+  const hrefPattern = /(?:href|content)=["']([^"']+)["']/gi;
+  const rawUrlPattern = /(webcal:\/\/[^"'`\s<]+|https:\/\/[^"'`\s<]+(?:\.ics|\/ics|calendar[^"'`\s<]*))/gi;
+
+  for (const match of html.matchAll(hrefPattern)) {
+    const candidate = escapeHtmlEntities(match[1] || "").trim();
+    if (candidate) candidates.add(candidate);
+  }
+
+  for (const match of html.matchAll(rawUrlPattern)) {
+    const candidate = escapeHtmlEntities(match[1] || "").trim();
+    if (candidate) candidates.add(candidate);
+  }
+
+  for (const candidate of candidates) {
+    const normalisedCandidate = normaliseCalendarUrl(candidate);
+    try {
+      const resolved = new URL(normalisedCandidate, baseUrl).toString();
+      if (/\.ics(\?|$)/i.test(resolved) || /^https:\/\/.*calendar/i.test(resolved)) {
+        return resolved;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+};
+
+const fetchCalendarBody = async (inputUrl, visited = new Set()) => {
+  const normalisedUrl = normaliseCalendarUrl(inputUrl);
+  if (visited.has(normalisedUrl)) {
+    throw new Error("Calendar link redirected in a loop.");
+  }
+
+  visited.add(normalisedUrl);
+
+  const response = await fetch(normalisedUrl, {
+    headers: {
+      Accept: "text/calendar,text/plain;q=0.9,text/html;q=0.8,*/*;q=0.7",
+    },
+  });
+
+  if (!response.ok) {
+    const error = new Error("Could not fetch that calendar link");
+    error.status = response.status;
+    throw error;
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  const content = await response.text();
+
+  if (looksLikeHtml(contentType, content)) {
+    const feedUrl = pickCalendarFeedUrl(content, normalisedUrl);
+    if (!feedUrl) {
+      throw new Error("That looks like an Outlook calendar web page, not the published calendar feed. In Outlook, use the Subscribe/ICS/webcal link.");
+    }
+
+    return fetchCalendarBody(feedUrl, visited);
+  }
+
+  return content;
+};
+
 const parseEvents = (content) => {
   const lines = unfoldICalLines(content);
   const events = [];
   let block = null;
 
   for (const line of lines) {
-    if (line === "BEGIN:VEVENT") {
+    const trimmedLine = line.trim();
+
+    if (trimmedLine.toUpperCase() === "BEGIN:VEVENT") {
       block = [];
       continue;
     }
 
-    if (line === "END:VEVENT") {
+    if (trimmedLine.toUpperCase() === "END:VEVENT") {
       if (block) {
         let title = "";
         let date = null;
@@ -85,13 +165,21 @@ const parseEvents = (content) => {
       continue;
     }
 
-    if (block) block.push(line);
+    if (block) block.push(trimmedLine);
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const localToday = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+
   return events
-    .filter((event) => event.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .filter((event) => event.date >= localToday)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .filter((event, index, items) => items.findIndex((item) => item.id === event.id && item.date === event.date) === index);
 };
 
 export default async function handler(req, res) {
@@ -118,21 +206,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(parsedUrl.toString(), {
-      headers: {
-        Accept: "text/calendar,text/plain;q=0.9,*/*;q=0.8",
-      },
-    });
-
-    if (!response.ok) {
-      return res.status(response.status).json({ error: "Could not fetch that calendar link" });
-    }
-
-    const content = await response.text();
+    const content = await fetchCalendarBody(parsedUrl.toString());
     const events = parseEvents(content);
     return res.status(200).json({ events });
   } catch (error) {
-    return res.status(500).json({
+    const status = typeof error?.status === "number" ? error.status : 500;
+    return res.status(status).json({
       error: error instanceof Error ? error.message : "Calendar import failed",
     });
   }

@@ -12,7 +12,7 @@ npm install
 
 2. Create a `.env` file from `.env.example`.
 
-3. Create a Supabase project and add:
+3. Create a Supabase project and add these env vars:
 
 ```env
 VITE_SUPABASE_URL=...
@@ -21,19 +21,13 @@ VITE_SUPABASE_ANON_KEY=...
 
 4. In Supabase SQL Editor, run [supabase/schema.sql](/Users/rg/my-app/supabase/schema.sql).
 
-5. Add a Google AI Studio API key if you want the AI assistant:
+5. For free local AI, install [Ollama](https://ollama.com/) and pull a Gemma 4 model:
 
-```env
-GEMINI_API_KEY=...
+```bash
+ollama pull gemma4
 ```
 
-Optional:
-
-```env
-GEMMA_MODEL=gemma-4-31b-it
-```
-
-6. Start the app:
+6. Keep Ollama running, then start the app:
 
 ```bash
 npm run dev
@@ -47,8 +41,11 @@ npm run build
 
 ## Notes
 
-- Auth and saved data now use Supabase instead of browser-only app storage.
-- Existing local browser data is imported automatically the first time a matching user signs in with the same email and the cloud workspace is still empty.
+- Auth and saved data use Supabase, so the same account works across devices and browsers.
+- If a user signs in with the same email they used before the cloud upgrade, old local browser data is imported the first time that cloud workspace is still empty.
 - Teams sync still requires a separate backend via `VITE_API_URL`.
 - Calendar import expects a published feed URL. For `calendar.online` / `kalender.digital`, open the school link, use the top-right options menu, choose `Export as Calendar Feed`, then paste the first link into the app.
-- The AI assistant uses hosted Gemma through the Google Gemini API proxy in [api/ai.js](/Users/rg/my-app/api/ai.js).
+- The AI assistant prefers a local Ollama server through [api/ai.js](/Users/rg/my-app/api/ai.js).
+- By default the server looks for Ollama at `http://127.0.0.1:11434` and uses `OLLAMA_MODEL=gemma4`.
+- If you later want a hosted fallback, the proxy can still use `GEMINI_API_KEY`, but it is optional.
+- Vercel cannot use your laptop's local Ollama server. If you deploy the app and want AI online there, `OLLAMA_BASE_URL` must point to a publicly reachable Ollama machine or another hosted inference endpoint.

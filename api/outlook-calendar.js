@@ -82,6 +82,18 @@ const pickCalendarFeedUrl = (html, baseUrl) => {
 
 const fetchCalendarBody = async (inputUrl, visited = new Set()) => {
   const normalisedUrl = normaliseCalendarUrl(inputUrl);
+  let parsedUrl;
+
+  try {
+    parsedUrl = new URL(normalisedUrl);
+  } catch {
+    throw new Error("Invalid calendar URL");
+  }
+
+  if (parsedUrl.protocol !== "https:" || isPrivateHostname(parsedUrl.hostname)) {
+    throw new Error("Please use a public HTTPS Outlook calendar link");
+  }
+
   if (visited.has(normalisedUrl)) {
     throw new Error("Calendar link redirected in a loop.");
   }

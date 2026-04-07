@@ -992,8 +992,8 @@ export default function Markd() {
       <div className="page">
         <h2 className="page-title">Exams</h2>
         <div className="calendar-sync-card">
-          <div className="calendar-sync-title">Outlook Assessment Calendar</div>
-          <div className="calendar-sync-sub">Paste your Outlook published ICS or webcal link. If you paste the browser page, Markd will try to find the feed automatically.</div>
+          <div className="calendar-sync-title">Assessment Calendar Feed</div>
+          <div className="calendar-sync-sub">Paste an Outlook published ICS/webcal link or another calendar feed URL. For Calendar.online or Kalender.digital, use the iCalendar Feed link from the top-right menu.</div>
           <input className="modal-input" placeholder="webcal://... or https://...ics" value={calendarInput} onChange={e=>setCalendarInput(e.target.value)} />
           <div className="calendar-sync-actions">
             <button className="calendar-sync-btn" onClick={()=>syncOutlookCalendar(calendarInput, true)} disabled={calendarSyncing}>{calendarSyncing ? "Syncing..." : outlookCalendarUrl ? "Save & Re-sync" : "Save & Sync"}</button>

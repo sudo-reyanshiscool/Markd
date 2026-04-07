@@ -1,5 +1,10 @@
 const normaliseCalendarUrl = (value) => value.trim().replace(/^webcal:\/\//i, "https://");
 
+const isCalendarOnlineHost = (hostname = "") => {
+  const value = hostname.toLowerCase();
+  return value === "calendar.online" || value.endsWith(".calendar.online") || value === "kalender.digital" || value.endsWith(".kalender.digital");
+};
+
 const isPrivateHostname = (hostname) => {
   const value = hostname.toLowerCase();
   return (
@@ -118,6 +123,9 @@ const fetchCalendarBody = async (inputUrl, visited = new Set()) => {
   if (looksLikeHtml(contentType, content)) {
     const feedUrl = pickCalendarFeedUrl(content, normalisedUrl);
     if (!feedUrl) {
+      if (isCalendarOnlineHost(parsedUrl.hostname)) {
+        throw new Error("This Calendar.online link is the calendar view, not the iCalendar feed. Open the link, use the top-right menu, choose iCalendar Feed, then paste the Feed URL or .ics link here.");
+      }
       throw new Error("That looks like an Outlook calendar web page, not the published calendar feed. In Outlook, use the Subscribe/ICS/webcal link.");
     }
 

@@ -2391,16 +2391,19 @@ export default function Markd() {
         @property --bpy { syntax: '<percentage>'; initial-value: 18%; inherits: false; }
         @property --btx { syntax: '<percentage>'; initial-value: 88%; inherits: false; }
         @property --bty { syntax: '<percentage>'; initial-value: 82%; inherits: false; }
+        @property --bax { syntax: '<percentage>'; initial-value: 52%; inherits: false; }
+        @property --bay { syntax: '<percentage>'; initial-value: 90%; inherits: false; }
         @keyframes blobDrift {
-          0%,100% { --bpx:12%; --bpy:18%; --btx:88%; --bty:82%; }
-          25%     { --bpx:20%; --bpy:28%; --btx:80%; --bty:72%; }
-          50%     { --bpx:24%; --bpy:10%; --btx:74%; --bty:88%; }
-          75%     { --bpx:6%;  --bpy:22%; --btx:86%; --bty:76%; }
+          0%,100% { --bpx:12%; --bpy:18%; --btx:88%; --bty:82%; --bax:52%; --bay:90%; }
+          25%     { --bpx:20%; --bpy:28%; --btx:80%; --bty:72%; --bax:44%; --bay:82%; }
+          50%     { --bpx:24%; --bpy:10%; --btx:74%; --bty:88%; --bax:58%; --bay:94%; }
+          75%     { --bpx:6%;  --bpy:22%; --btx:86%; --bty:76%; --bax:48%; --bay:85%; }
         }
         .markd-app {
           background-image:
             radial-gradient(ellipse at var(--bpx) var(--bpy), rgba(124,106,247,0.38) 0%, transparent 50%),
-            radial-gradient(ellipse at var(--btx) var(--bty), rgba(106,247,196,0.26) 0%, transparent 50%);
+            radial-gradient(ellipse at var(--btx) var(--bty), rgba(106,247,196,0.26) 0%, transparent 50%),
+            radial-gradient(ellipse at var(--bax) var(--bay), rgba(247,162,106,0.22) 0%, transparent 42%);
           animation: blobDrift 18s ease-in-out infinite;
         }
         /* Explicit glass backgrounds on all card-like surfaces */
@@ -2420,7 +2423,8 @@ export default function Markd() {
         .markd-app.light-theme {
           background-image:
             radial-gradient(ellipse at var(--bpx) var(--bpy), rgba(107,84,245,0.16) 0%, transparent 52%),
-            radial-gradient(ellipse at var(--btx) var(--bty), rgba(43,189,138,0.12) 0%, transparent 52%);
+            radial-gradient(ellipse at var(--btx) var(--bty), rgba(43,189,138,0.12) 0%, transparent 52%),
+            radial-gradient(ellipse at var(--bax) var(--bay), rgba(247,162,106,0.11) 0%, transparent 42%);
         }
         .markd-app.light-theme .subject-card,
         .markd-app.light-theme .list-item,
@@ -2439,6 +2443,139 @@ export default function Markd() {
         .markd-app.light-theme .modal-input,
         .markd-app.light-theme .tab-btn,
         .markd-app.light-theme .horizon-btn { background: rgba(255,255,255,0.65); border: 1px solid rgba(0,0,0,0.09); }
+
+        /* ── Micro-animations ── */
+
+        /* Checkbox spring pop on check */
+        @keyframes checkPop {
+          0%   { transform: scale(1); }
+          40%  { transform: scale(1.32); }
+          65%  { transform: scale(0.88); }
+          82%  { transform: scale(1.1); }
+          100% { transform: scale(1); }
+        }
+        .task-check.checked { animation: checkPop 0.38s cubic-bezier(0.34,1.56,0.64,1); }
+        .goal-check.checked { animation: checkPop 0.38s cubic-bezier(0.34,1.56,0.64,1); }
+
+        /* Empty-state icon gentle levitation */
+        @keyframes iconFloat {
+          0%, 100% { transform: translateY(0px); }
+          50%       { transform: translateY(-7px); }
+        }
+        .empty-state-icon { animation: iconFloat 3.4s ease-in-out infinite; }
+
+        /* Stat numbers pop-in entrance with stagger */
+        @keyframes statPop {
+          from { opacity: 0; transform: scale(0.6) translateY(8px); }
+          to   { opacity: 1; transform: scale(1)   translateY(0); }
+        }
+        .stat-num {
+          animation: statPop 0.42s cubic-bezier(0.34,1.56,0.64,1) both;
+        }
+        .stat-card:nth-child(1) .stat-num { animation-delay: 0ms; }
+        .stat-card:nth-child(2) .stat-num { animation-delay: 60ms; }
+        .stat-card:nth-child(3) .stat-num { animation-delay: 120ms; }
+        .stat-card:nth-child(4) .stat-num { animation-delay: 180ms; }
+
+        /* Active nav-item spring pop */
+        .nav-item.active { animation: checkPop 0.32s cubic-bezier(0.34,1.56,0.64,1); }
+        .sidebar-item.active { animation: checkPop 0.32s cubic-bezier(0.34,1.56,0.64,1); }
+
+        /* FAB press scale */
+        .fab:active { transform: scale(0.9); transition: transform 0.12s ease-in; }
+
+        /* Next-exam-card breathing glow */
+        @keyframes examGlow {
+          0%, 100% { box-shadow: 0 4px 20px rgba(124,106,247,0.18); }
+          50%       { box-shadow: 0 8px 32px rgba(124,106,247,0.38); }
+        }
+        .next-exam-card { animation: examGlow 3s ease-in-out infinite; }
+
+        /* Card shimmer sweep */
+        @keyframes glassSheen {
+          0%   { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+          15%  { opacity: 1; }
+          85%  { opacity: 1; }
+          100% { transform: translateX(220%) skewX(-18deg); opacity: 0; }
+        }
+        .subject-card, .activity-card, .portfolio-card {
+          position: relative; overflow: hidden;
+        }
+        .subject-card::after, .activity-card::after, .portfolio-card::after {
+          content: '';
+          position: absolute; inset: 0;
+          background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.13) 50%, transparent 60%);
+          transform: translateX(-120%) skewX(-18deg);
+          pointer-events: none;
+          animation: glassSheen 6s ease-in-out infinite;
+        }
+        .subject-card:nth-child(2n)::after   { animation-delay: 1.2s; }
+        .subject-card:nth-child(3n)::after   { animation-delay: 2.6s; }
+        .subject-card:nth-child(4n)::after   { animation-delay: 3.9s; }
+        .activity-card:nth-child(2n)::after  { animation-delay: 0.8s; }
+        .portfolio-card:nth-child(2n)::after { animation-delay: 1.8s; }
+
+        /* Modal save button ripple */
+        .modal-save-btn { position: relative; overflow: hidden; }
+        .modal-save-btn::after {
+          content: '';
+          position: absolute;
+          inset: 50% 50%;
+          width: 0; height: 0;
+          background: rgba(255,255,255,0.3);
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          opacity: 0;
+          pointer-events: none;
+        }
+        .modal-save-btn:active::after {
+          animation: rippleOut 0.45s ease-out forwards;
+        }
+        @keyframes rippleOut {
+          to { width: 280px; height: 280px; opacity: 0; }
+        }
+
+        /* Auth button ripple */
+        .auth-btn { position: relative; overflow: hidden; }
+        .auth-btn::after {
+          content: '';
+          position: absolute;
+          inset: 50% 50%;
+          width: 0; height: 0;
+          background: rgba(255,255,255,0.28);
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          opacity: 0;
+          pointer-events: none;
+        }
+        .auth-btn:active::after { animation: rippleOut 0.45s ease-out forwards; }
+
+        /* Badge entrance pop */
+        @keyframes badgeIn {
+          from { opacity: 0; transform: scale(0); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        .badge { animation: badgeIn 0.28s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+        /* List-item entrance stagger */
+        @keyframes listIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .list-item, .exam-card, .paper-card {
+          animation: listIn 0.3s ease-out both;
+        }
+        .list-item:nth-child(1), .exam-card:nth-child(1), .paper-card:nth-child(1) { animation-delay: 0ms; }
+        .list-item:nth-child(2), .exam-card:nth-child(2), .paper-card:nth-child(2) { animation-delay: 40ms; }
+        .list-item:nth-child(3), .exam-card:nth-child(3), .paper-card:nth-child(3) { animation-delay: 80ms; }
+        .list-item:nth-child(4), .exam-card:nth-child(4), .paper-card:nth-child(4) { animation-delay: 120ms; }
+        .list-item:nth-child(5), .exam-card:nth-child(5), .paper-card:nth-child(5) { animation-delay: 160ms; }
+        .list-item:nth-child(n+6), .exam-card:nth-child(n+6), .paper-card:nth-child(n+6) { animation-delay: 200ms; }
+
+        /* Respect reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+          *, ::before, ::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+        }
       `}</style>
 
       <div className={`markd-app ${theme==="light"?"light-theme":""}`}>

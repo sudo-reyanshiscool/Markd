@@ -41,6 +41,14 @@ const GRADES = ["9","8","7","6","5","4","3","2","1","A*","A","B","C","D","E","F"
 const HORIZONS = ["3 months","6 months","9 months","12 months"];
 const PORTFOLIO_TYPES = ["Project","Achievement","Competition","Leadership"];
 const TYPE_COLOURS = { Project:"#7c6af7", Achievement:"#6af7c4", Competition:"#f7a26a", Leadership:"#f76ab8" };
+const PRIORITY_ORDER = ["urgent", "soon", "later"];
+const PRIORITY_META = {
+  urgent: { label: "Urgent", color: "var(--danger)" },
+  soon: { label: "Soon", color: "var(--accent2)" },
+  later: { label: "Later", color: "var(--accent3)" },
+};
+const DAILY_PLANNER_LIMIT = 6;
+const XP_PER_LEVEL = 120;
 
 // ─── Curriculum catalogues ───
 const CURRICULA = {
@@ -194,16 +202,101 @@ const uid = () => {
   return `markd_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 };
 const today = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
+const toDateKey = (input = new Date()) => {
+  const date = input instanceof Date ? new Date(input) : new Date(input);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0,0,0,0);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+const shiftDateKey = (dateKey, amount) => {
+  const base = dateKey ? new Date(`${dateKey}T00:00:00`) : today();
+  base.setDate(base.getDate() + amount);
+  return toDateKey(base);
+};
 const daysUntil = (dateStr) => {
   const t = today();
   const d = new Date(dateStr); d.setHours(0,0,0,0);
   return Math.ceil((d - t) / 86400000);
 };
 const fmtDate = (d) => new Date(d).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const formatMinutes = (minutes) => {
+  if (!minutes) return "0m";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+};
 const gradeToPercent = (g) => {
   const map = {"9":90,"8":80,"7":70,"6":60,"5":50,"4":40,"3":30,"2":20,"1":10,"A*":90,"A":80,"B":70,"C":60,"D":50,"E":40,"F":30,"G":20};
   return map[g] || 50;
 };
+const inferPriorityFromText = (text = "") => {
+  const value = text.toLowerCase();
+  if (/(asap|urgent|today|tonight|tomorrow|immediately)/.test(value)) return "urgent";
+  if (/(exam|mock|essay|deadline|coursework|revision|study|practice)/.test(value)) return "soon";
+  return "later";
+};
+const estimateFromText = (text = "") => {
+  const value = text.toLowerCase();
+  if (!value) return 30;
+  if (/(essay|coursework|project|investigation|presentation|write[- ]?up|mock|practice paper|past paper|extended)/.test(value)) return 60;
+  if (/(debug|coding|program|worksheet|problem set|questions|revision)/.test(value)) return 45;
+  if (/(flashcard|quiz|recap|review|read|label|plan|outline|notes|speaking|vocab)/.test(value)) return 25;
+  return 35;
+};
+const sanitiseEstimate = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null;
+};
+const normaliseTask = (task = {}) => {
+  const done = Boolean(task.done);
+  return {
+    ...task,
+    id: task.id || uid(),
+    subjectId: task.subjectId || null,
+    text: typeof task.text === "string" ? task.text : "",
+    done,
+    priority: PRIORITY_ORDER.includes(task.priority) ? task.priority : inferPriorityFromText(task.text),
+    estimateMinutes: sanitiseEstimate(task.estimateMinutes),
+    topic: typeof task.topic === "string" ? task.topic : "",
+    createdAt: typeof task.createdAt === "string" ? task.createdAt : new Date().toISOString(),
+    completedAt: done && typeof task.completedAt === "string" ? task.completedAt : null,
+  };
+};
+const normaliseGoal = (goal = {}) => {
+  const done = Boolean(goal.done);
+  return {
+    ...goal,
+    id: goal.id || uid(),
+    text: typeof goal.text === "string" ? goal.text : "",
+    horizon: HORIZONS.includes(goal.horizon) ? goal.horizon : "3 months",
+    subjectId: goal.subjectId || null,
+    done,
+    completedAt: done && typeof goal.completedAt === "string" ? goal.completedAt : null,
+  };
+};
+const buildTask = (task = {}) =>
+  normaliseTask({
+    id: uid(),
+    done: false,
+    priority: inferPriorityFromText(task.text),
+    estimateMinutes: estimateFromText(task.text),
+    topic: "",
+    createdAt: new Date().toISOString(),
+    completedAt: null,
+    ...task,
+  });
+const buildGoal = (goal = {}) =>
+  normaliseGoal({
+    id: uid(),
+    done: false,
+    completedAt: null,
+    ...goal,
+  });
 
 // ─── Empty defaults for new users ───
 const EMPTY_SUBJECTS = [];
@@ -226,6 +319,7 @@ const createEmptyAppData = () => ({
   activities: [],
   deleted: [],
   theme: "dark",
+  revisionMode: false,
   outlookCalendarUrl: "",
   calendarLastSync: null,
 });
@@ -234,15 +328,16 @@ const normaliseAppData = (appData = {}) => {
   const fallback = createEmptyAppData();
   return {
     subjects: Array.isArray(appData.subjects) ? appData.subjects : fallback.subjects,
-    tasks: Array.isArray(appData.tasks) ? appData.tasks : fallback.tasks,
+    tasks: Array.isArray(appData.tasks) ? appData.tasks.map(normaliseTask) : fallback.tasks,
     deadlines: Array.isArray(appData.deadlines) ? appData.deadlines : fallback.deadlines,
     exams: Array.isArray(appData.exams) ? appData.exams : fallback.exams,
     papers: Array.isArray(appData.papers) ? appData.papers : fallback.papers,
-    goals: Array.isArray(appData.goals) ? appData.goals : fallback.goals,
+    goals: Array.isArray(appData.goals) ? appData.goals.map(normaliseGoal) : fallback.goals,
     portfolio: Array.isArray(appData.portfolio) ? appData.portfolio : fallback.portfolio,
     activities: Array.isArray(appData.activities) ? appData.activities : fallback.activities,
     deleted: Array.isArray(appData.deleted) ? appData.deleted : fallback.deleted,
     theme: appData.theme === "light" ? "light" : "dark",
+    revisionMode: Boolean(appData.revisionMode),
     outlookCalendarUrl: typeof appData.outlookCalendarUrl === "string" ? appData.outlookCalendarUrl : "",
     calendarLastSync:
       typeof appData.calendarLastSync === "string" || appData.calendarLastSync === null
@@ -264,6 +359,7 @@ const isEmptyAppData = (appData = {}) => {
     data.activities.length === 0 &&
     data.deleted.length === 0 &&
     data.theme === "dark" &&
+    data.revisionMode === false &&
     data.outlookCalendarUrl === "" &&
     data.calendarLastSync === null
   );
@@ -367,6 +463,16 @@ const DEMO_ADMIN_PROFILE = {
   school: "Markd Demo Academy",
 };
 
+const SCHOOL_BY_EMAIL_DOMAIN = {
+  "british-school.org": "The British School New Delhi",
+};
+
+const getSchoolFromEmail = (email) => {
+  const normalisedEmail = String(email || "").trim().toLowerCase();
+  const domain = normalisedEmail.includes("@") ? normalisedEmail.split("@").pop() : "";
+  return SCHOOL_BY_EMAIL_DOMAIN[domain] || "";
+};
+
 const buildSessionUser = (authUser, profile) => ({
   userId: authUser.id,
   email: (profile?.email || authUser.email || "").toLowerCase(),
@@ -447,15 +553,15 @@ const createDemoAppData = () => {
       { id: spanishId, name: "Spanish", board: "AQA", target: "7", colour: PALETTE[6] },
     ],
     tasks: [
-      { id: uid(), subjectId: mathsId, text: "Finish algebra revision set", done: false },
-      { id: uid(), subjectId: bioId, text: "Make flashcards for respiration", done: true },
-      { id: uid(), subjectId: englishId, text: "Annotate Macbeth Act 2", done: false },
-      { id: uid(), subjectId: historyId, text: "Plan Cold War essay", done: false },
-      { id: uid(), subjectId: chemistryId, text: "Complete organic chemistry recap quiz", done: false },
-      { id: uid(), subjectId: computerScienceId, text: "Debug binary search trace questions", done: true },
-      { id: uid(), subjectId: spanishId, text: "Practise speaking answers for theme 2", done: false },
-      { id: uid(), subjectId: mathsId, text: "Review mistakes from last mock", done: true },
-      { id: uid(), subjectId: bioId, text: "Label heart and circulation diagrams", done: false },
+      buildTask({ subjectId: mathsId, text: "Finish algebra revision set", priority: "urgent", estimateMinutes: 45, topic: "Algebra" }),
+      buildTask({ subjectId: bioId, text: "Make flashcards for respiration", done: true, completedAt: new Date().toISOString(), priority: "soon", estimateMinutes: 25, topic: "Respiration" }),
+      buildTask({ subjectId: englishId, text: "Annotate Macbeth Act 2", priority: "soon", estimateMinutes: 35, topic: "Macbeth" }),
+      buildTask({ subjectId: historyId, text: "Plan Cold War essay", priority: "urgent", estimateMinutes: 60, topic: "Cold War" }),
+      buildTask({ subjectId: chemistryId, text: "Complete organic chemistry recap quiz", priority: "soon", estimateMinutes: 30, topic: "Organic Chemistry" }),
+      buildTask({ subjectId: computerScienceId, text: "Debug binary search trace questions", done: true, completedAt: new Date().toISOString(), priority: "soon", estimateMinutes: 40, topic: "Algorithms" }),
+      buildTask({ subjectId: spanishId, text: "Practise speaking answers for theme 2", priority: "later", estimateMinutes: 25, topic: "Speaking" }),
+      buildTask({ subjectId: mathsId, text: "Review mistakes from last mock", done: true, completedAt: new Date().toISOString(), priority: "soon", estimateMinutes: 30, topic: "Mocks" }),
+      buildTask({ subjectId: bioId, text: "Label heart and circulation diagrams", priority: "soon", estimateMinutes: 20, topic: "Circulation" }),
     ],
     deadlines: [
       { id: uid(), subjectId: historyId, title: "Cold War source analysis", date: addDays(4) },
@@ -483,12 +589,12 @@ const createDemoAppData = () => {
       { id: uid(), subjectId: spanishId, title: "Reading Practice", year: "2025", paper: "", scored: 46, total: 60, file: null },
     ],
     goals: [
-      { id: uid(), text: "Push Maths average above 85%", horizon: "3 months", subjectId: mathsId, done: false },
-      { id: uid(), text: "Finish Biology flashcards before mocks", horizon: "3 months", subjectId: bioId, done: true },
-      { id: uid(), text: "Build a strong essay bank for History", horizon: "6 months", subjectId: historyId, done: false },
-      { id: uid(), text: "Reach grade 8 confidence in Chemistry calculations", horizon: "6 months", subjectId: chemistryId, done: false },
-      { id: uid(), text: "Ship one polished coding project for portfolio", horizon: "9 months", subjectId: computerScienceId, done: false },
-      { id: uid(), text: "Hold a 10-minute Spanish conversation confidently", horizon: "12 months", subjectId: spanishId, done: false },
+      buildGoal({ text: "Push Maths average above 85%", horizon: "3 months", subjectId: mathsId, done: false }),
+      buildGoal({ text: "Finish Biology flashcards before mocks", horizon: "3 months", subjectId: bioId, done: true, completedAt: new Date().toISOString() }),
+      buildGoal({ text: "Build a strong essay bank for History", horizon: "6 months", subjectId: historyId, done: false }),
+      buildGoal({ text: "Reach grade 8 confidence in Chemistry calculations", horizon: "6 months", subjectId: chemistryId, done: false }),
+      buildGoal({ text: "Ship one polished coding project for portfolio", horizon: "9 months", subjectId: computerScienceId, done: false }),
+      buildGoal({ text: "Hold a 10-minute Spanish conversation confidently", horizon: "12 months", subjectId: spanishId, done: false }),
     ],
     portfolio: [
       { id: uid(), subjectId: bioId, title: "Independent enzyme investigation", type: "Project", desc: "Designed and analysed a practical exploring pH and enzyme activity, then presented the findings.", tags: ["Practical", "Analysis", "Presentation"] },
@@ -548,6 +654,7 @@ const createDemoAppData = () => {
       { id: uid(), type: "goal", item: deletedGoal, label: deletedGoal.text, deletedAt: "13:10" },
     ],
     theme: "dark",
+    revisionMode: false,
     outlookCalendarUrl: "",
     calendarLastSync: null,
   };
@@ -565,7 +672,27 @@ function AuthScreen({ onAuth, onDemoAuth, cloudError = "" }) {
   const [demoTapCount, setDemoTapCount] = useState(0);
   const [demoUnlocked, setDemoUnlocked] = useState(false);
 
-  const upd = (k, v) => { setForm(f => ({...f, [k]:v})); setError(""); };
+  const detectedSchool = getSchoolFromEmail(form.email);
+
+  const upd = (k, v) => {
+    setForm(f => {
+      const next = { ...f, [k]: v };
+
+      if (k === "email") {
+        const nextDetectedSchool = getSchoolFromEmail(v);
+        const previousDetectedSchool = getSchoolFromEmail(f.email);
+
+        if (nextDetectedSchool) {
+          next.school = nextDetectedSchool;
+        } else if (f.school === previousDetectedSchool) {
+          next.school = "";
+        }
+      }
+
+      return next;
+    });
+    setError("");
+  };
   const openDemoAdmin = () => {
     setError("");
     onDemoAuth?.();
@@ -583,9 +710,10 @@ function AuthScreen({ onAuth, onDemoAuth, cloudError = "" }) {
 
   const handleSignup = async () => {
     if (!isSupabaseConfigured || !supabase) return setError(cloudError || CLOUD_CONFIG_ERROR);
+    const resolvedSchool = detectedSchool || form.school.trim();
     if (!form.name.trim()) return setError("Please enter your name.");
-    if (!form.school.trim()) return setError("Please enter your school name.");
     if (!form.email.trim() || !form.email.includes("@")) return setError("Please enter a valid email.");
+    if (!resolvedSchool) return setError("Please enter your school name.");
     if (form.password.length < 6) return setError("Password must be at least 6 characters.");
     if (form.password !== form.confirm) return setError("Passwords don't match.");
     setLoading(true);
@@ -597,7 +725,7 @@ function AuthScreen({ onAuth, onDemoAuth, cloudError = "" }) {
         options: {
           data: {
             name: form.name.trim(),
-            school: form.school.trim(),
+            school: resolvedSchool,
           },
         },
       });
@@ -615,7 +743,7 @@ function AuthScreen({ onAuth, onDemoAuth, cloudError = "" }) {
         id: data.user.id,
         email,
         name: form.name.trim(),
-        school: form.school.trim(),
+        school: resolvedSchool,
         appData: createEmptyAppData(),
       });
 
@@ -691,6 +819,7 @@ function AuthScreen({ onAuth, onDemoAuth, cloudError = "" }) {
         .auth-link { background:none; border:none; color:#7c6af7; font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
         .auth-link:hover { opacity:0.8; }
         .auth-footer { text-align:center; font-size:11px; color:#6b6b80; }
+        .auth-helper { font-size:11px; color:#9d9db4; line-height:1.5; margin-top:-4px; }
         .auth-demo-note { font-size:11px; color:#9d9db4; line-height:1.6; text-align:center; }
         .auth-demo-creds { display:block; color:#e8e8f0; margin-top:4px; }
         .auth-secret-hint { text-align:center; font-size:10px; color:#6b6b80; letter-spacing:0.2px; }
@@ -732,8 +861,9 @@ function AuthScreen({ onAuth, onDemoAuth, cloudError = "" }) {
           {(cloudError || error) && <div className="auth-error">{error || cloudError}</div>}
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             <input className="auth-input" placeholder="Your name" value={form.name} onChange={e=>upd("name",e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSignup()}/>
-            <input className="auth-input" placeholder="School name" value={form.school} onChange={e=>upd("school",e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSignup()}/>
             <input className="auth-input" placeholder="Email address" type="email" value={form.email} onChange={e=>upd("email",e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSignup()}/>
+            <input className="auth-input" placeholder="School name" value={form.school} onChange={e=>upd("school",e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSignup()} readOnly={Boolean(detectedSchool)} />
+            {detectedSchool && <div className="auth-helper">School detected from your email: {detectedSchool}</div>}
             <div className="auth-input-wrap">
               <input className="auth-input has-toggle" placeholder="Password (min. 6 characters)" type={showPass?"text":"password"} value={form.password} onChange={e=>upd("password",e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSignup()}/>
               <button className="auth-eye" onClick={()=>setShowPass(s=>!s)}><Icon d={showPass?icons.eyeOff:icons.eye} size={16}/></button>
@@ -836,6 +966,7 @@ export default function Markd() {
   const [activities, setActivities] = useState(EMPTY_ACTIVITIES);
   const [recentlyDeleted, setRecentlyDeleted] = useState([]);
   const [theme, setTheme] = useState("dark");
+  const [revisionMode, setRevisionMode] = useState(false);
   const [outlookCalendarUrl, setOutlookCalendarUrl] = useState("");
   const [calendarLastSync, setCalendarLastSync] = useState(null);
   const [loadedUserId, setLoadedUserId] = useState(null);
@@ -866,6 +997,11 @@ export default function Markd() {
   const [calendarInput, setCalendarInput] = useState("");
   const [calendarSyncing, setCalendarSyncing] = useState(false);
   const [calendarSyncError, setCalendarSyncError] = useState("");
+  const [quickTaskText, setQuickTaskText] = useState("");
+  const [quickTaskSubjectId, setQuickTaskSubjectId] = useState("");
+  const [quickTaskTopic, setQuickTaskTopic] = useState("");
+  const [highlightedTaskId, setHighlightedTaskId] = useState(null);
+  const [completionBurstId, setCompletionBurstId] = useState(null);
 
   const resetPersistedState = () => {
     const empty = createEmptyAppData();
@@ -879,6 +1015,7 @@ export default function Markd() {
     setActivities(empty.activities);
     setRecentlyDeleted(empty.deleted);
     setTheme(empty.theme);
+    setRevisionMode(empty.revisionMode);
     setOutlookCalendarUrl(empty.outlookCalendarUrl);
     setCalendarLastSync(empty.calendarLastSync);
     setCalendarInput("");
@@ -897,6 +1034,7 @@ export default function Markd() {
     setActivities(next.activities);
     setRecentlyDeleted(next.deleted);
     setTheme(next.theme);
+    setRevisionMode(next.revisionMode);
     setOutlookCalendarUrl(next.outlookCalendarUrl);
     setCalendarLastSync(next.calendarLastSync);
     setCalendarInput(next.outlookCalendarUrl);
@@ -913,25 +1051,14 @@ export default function Markd() {
     activities,
     deleted: recentlyDeleted,
     theme,
+    revisionMode,
     outlookCalendarUrl,
     calendarLastSync,
   });
 
   useEffect(() => {
     if (demoMode) {
-      const demoData = createDemoAppData();
-      setSubjects(demoData.subjects);
-      setTasks(demoData.tasks);
-      setDeadlines(demoData.deadlines);
-      setExams(demoData.exams);
-      setPapers(demoData.papers);
-      setGoals(demoData.goals);
-      setPortfolio(demoData.portfolio);
-      setActivities(demoData.activities);
-      setRecentlyDeleted(demoData.deleted);
-      setTheme(demoData.theme);
-      setOutlookCalendarUrl(demoData.outlookCalendarUrl);
-      setCalendarLastSync(demoData.calendarLastSync);
+      applyPersistedState(createDemoAppData());
       setCalendarInput("");
       setCalendarSyncError("");
       setLoadedUserId(DEMO_ADMIN_USER_ID);
@@ -942,6 +1069,18 @@ export default function Markd() {
   useEffect(() => {
     setCalendarInput(outlookCalendarUrl);
   }, [outlookCalendarUrl]);
+
+  useEffect(() => {
+    if (quickTaskSubjectId && !subjects.some(subject => subject.id === quickTaskSubjectId)) {
+      setQuickTaskSubjectId("");
+    }
+  }, [quickTaskSubjectId, subjects]);
+
+  useEffect(() => {
+    if (revisionMode && ["activities", "portfolio"].includes(page)) {
+      setPage("home");
+    }
+  }, [page, revisionMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1108,6 +1247,7 @@ export default function Markd() {
     subjects,
     tasks,
     theme,
+    revisionMode,
     outlookCalendarUrl,
     userId,
     authUser,
@@ -1189,9 +1329,8 @@ export default function Markd() {
   const deleteActivity = (id) => { const a=activities.find(x=>x.id===id); confirmDelete(`Delete activity "${a?.name}"?`,()=>{ pushDeleted("activity",a,a?.name); setActivities(as=>as.filter(x=>x.id!==id)); }); };
 
   const resetAllData = () => {
-    setSubjects([]); setTasks([]); setDeadlines([]); setExams([]);
-    setPapers([]); setGoals([]); setPortfolio([]); setActivities([]);
-    setRecentlyDeleted([]); setResetStep(0);
+    resetPersistedState();
+    setResetStep(0);
   };
 
   // ─── Subject helpers ───
@@ -1207,6 +1346,252 @@ export default function Markd() {
   const avgMark = (sId) => { const sp=papers.filter(p=>p.subjectId===sId); if(!sp.length) return null; return Math.round(sp.reduce((a,p)=>a+(p.scored/p.total)*100,0)/sp.length); };
   const subjectDeadlineCount = (sId) => deadlines.filter(d=>d.subjectId===sId).length;
   const subjectTaskProgress = (sId) => { const st=tasks.filter(t=>t.subjectId===sId); if(!st.length) return null; return { done:st.filter(t=>t.done).length, total:st.length }; };
+  const todayKey = toDateKey();
+  const getTaskEstimateMinutes = (task) => sanitiseEstimate(task?.estimateMinutes) || estimateFromText(task?.text);
+  const getUpcomingDaysForSubject = (subjectId) => {
+    const subjectDeadlines = deadlines
+      .filter(item => item.subjectId === subjectId)
+      .map(item => daysUntil(item.date))
+      .filter(days => days >= 0);
+    const subjectExams = exams
+      .filter(item => item.subjectId === subjectId)
+      .map(item => daysUntil(item.date))
+      .filter(days => days >= 0);
+    const combined = [...subjectDeadlines, ...subjectExams];
+    return combined.length ? Math.min(...combined) : null;
+  };
+  const getNextExamForSubject = (subjectId) =>
+    [...exams]
+      .filter(exam => exam.subjectId === subjectId && daysUntil(exam.date) >= 0)
+      .sort((a, b) => new Date(a.date) - new Date(b.date))[0] || null;
+  const getEffectivePriority = (task) => {
+    const explicitPriority = PRIORITY_ORDER.includes(task.priority) ? task.priority : inferPriorityFromText(task.text);
+    const upcomingDays = task.subjectId ? getUpcomingDaysForSubject(task.subjectId) : null;
+
+    if (upcomingDays !== null && upcomingDays <= 3) return "urgent";
+    if (upcomingDays !== null && upcomingDays <= 10 && explicitPriority === "later") return "soon";
+    return explicitPriority;
+  };
+  const getPriorityMeta = (priority) => PRIORITY_META[priority] || PRIORITY_META.later;
+  const getTaskScore = (task) => {
+    const priority = getEffectivePriority(task);
+    const priorityWeight = { urgent: 320, soon: 220, later: 120 }[priority];
+    const estimateWeight = Math.max(0, 55 - Math.min(getTaskEstimateMinutes(task), 60));
+    const upcomingDays = task.subjectId ? getUpcomingDaysForSubject(task.subjectId) : null;
+    const pressureWeight = upcomingDays === null ? 0 : Math.max(0, 28 - upcomingDays) * 6;
+    const ageWeight = task.createdAt ? clamp(Math.floor((today() - new Date(task.createdAt)) / 86400000), 0, 21) * 3 : 0;
+    const topicWeight = task.topic ? 8 : 0;
+    return priorityWeight + estimateWeight + pressureWeight + ageWeight + topicWeight;
+  };
+  const rankedTasks = [...tasks]
+    .filter(task => !task.done)
+    .map(task => ({
+      ...task,
+      effectivePriority: getEffectivePriority(task),
+      resolvedEstimateMinutes: getTaskEstimateMinutes(task),
+      score: getTaskScore(task),
+    }))
+    .sort((a, b) => b.score - a.score || a.resolvedEstimateMinutes - b.resolvedEstimateMinutes);
+  const dailyPlannerTasks = rankedTasks.slice(0, DAILY_PLANNER_LIMIT);
+  const suggestedTask = dailyPlannerTasks[0] || null;
+  const completedTodayTasks = tasks.filter(task => task.done && task.completedAt && toDateKey(task.completedAt) === todayKey);
+  const completedTodayGoals = goals.filter(goal => goal.done && goal.completedAt && toDateKey(goal.completedAt) === todayKey);
+  const weeklyCompletedTasks = tasks.filter(task => task.done && task.completedAt && toDateKey(task.completedAt) >= shiftDateKey(todayKey, -6));
+  const weeklyCompletedGoals = goals.filter(goal => goal.done && goal.completedAt && toDateKey(goal.completedAt) >= shiftDateKey(todayKey, -6));
+  const weeklyCompletedMinutes = weeklyCompletedTasks.reduce((sum, task) => sum + getTaskEstimateMinutes(task), 0);
+  const completedDates = Array.from(
+    new Set(
+      [
+        ...tasks.map(task => (task.done && task.completedAt ? toDateKey(task.completedAt) : null)),
+        ...goals.map(goal => (goal.done && goal.completedAt ? toDateKey(goal.completedAt) : null)),
+      ].filter(Boolean)
+    )
+  ).sort();
+  const streakStart = completedDates.length ? completedDates[completedDates.length - 1] : null;
+  let streak = 0;
+  if (streakStart && (streakStart === todayKey || streakStart === shiftDateKey(todayKey, -1))) {
+    let cursor = streakStart;
+    const completedDateSet = new Set(completedDates);
+    while (completedDateSet.has(cursor)) {
+      streak += 1;
+      cursor = shiftDateKey(cursor, -1);
+    }
+  }
+  const totalXp =
+    tasks.filter(task => task.done).reduce((sum, task) => {
+      const priorityBonus = { urgent: 14, soon: 10, later: 6 }[getEffectivePriority(task)];
+      return sum + Math.round(getTaskEstimateMinutes(task) / 5) + priorityBonus;
+    }, 0) +
+    goals.filter(goal => goal.done).length * 24 +
+    papers.length * 12;
+  const level = Math.max(1, Math.floor(totalXp / XP_PER_LEVEL) + 1);
+  const levelProgress = totalXp % XP_PER_LEVEL;
+  const plannerProgressBase = completedTodayTasks.length + completedTodayGoals.length + dailyPlannerTasks.length;
+  const plannerProgressPct = plannerProgressBase === 0 ? 0 : Math.round(((completedTodayTasks.length + completedTodayGoals.length) / plannerProgressBase) * 100);
+  const paperTrendDelta = (() => {
+    if (papers.length < 2) return 0;
+    const percentages = papers.map(paper => Math.round((paper.scored / paper.total) * 100));
+    return percentages[percentages.length - 1] - percentages[0];
+  })();
+  const achievements = [
+    { id: "first-finish", title: "First Finish", desc: "Complete your first task", earned: tasks.some(task => task.done) },
+    { id: "focus-streak", title: "Focus Streak", desc: "Keep a 3-day productivity streak", earned: streak >= 3 },
+    { id: "deep-work", title: "Deep Work", desc: "Log 3+ study hours in a week", earned: weeklyCompletedMinutes >= 180 },
+    { id: "paper-trail", title: "Paper Trail", desc: "Log 5 past papers", earned: papers.length >= 5 },
+    { id: "goal-getter", title: "Goal Getter", desc: "Complete 2 goals", earned: goals.filter(goal => goal.done).length >= 2 },
+  ];
+  const unlockedAchievements = achievements.filter(achievement => achievement.earned);
+  const getSubjectHealth = (subjectId) => {
+    const avg = avgMark(subjectId);
+    const taskProgress = subjectTaskProgress(subjectId);
+    const upcomingDays = getUpcomingDaysForSubject(subjectId);
+    const avgScore = avg ?? 58;
+    const taskScore = taskProgress ? Math.round((taskProgress.done / taskProgress.total) * 100) : 62;
+    const deadlineBuffer = upcomingDays === null ? 82 : clamp(100 - (14 - Math.min(upcomingDays, 14)) * 6, 28, 100);
+    const health = Math.round(avgScore * 0.45 + taskScore * 0.3 + deadlineBuffer * 0.25);
+    return clamp(health, 0, 100);
+  };
+  const getHealthTone = (score) => (score >= 75 ? "var(--accent3)" : score >= 55 ? "var(--accent2)" : "var(--danger)");
+  const getProjectedGrade = (subject) => {
+    if (!subject) return null;
+    const avg = avgMark(subject.id);
+    if (avg === null) return null;
+    const scale =
+      subject.board === "IB"
+        ? GRADES_IB
+        : GRADES_IGCSE.includes(subject.target)
+          ? GRADES_IGCSE
+          : GRADES_GCSE;
+
+    return scale.reduce((best, grade) => {
+      if (!best) return grade;
+      return Math.abs(gradeToPercent(grade) - avg) < Math.abs(gradeToPercent(best) - avg) ? grade : best;
+    }, null);
+  };
+  const getTopicProgress = (subjectId) => {
+    const topicMap = new Map();
+    tasks
+      .filter(task => task.subjectId === subjectId && task.topic)
+      .forEach(task => {
+        const key = task.topic.trim();
+        if (!key) return;
+        const current = topicMap.get(key) || { total: 0, done: 0 };
+        current.total += 1;
+        current.done += task.done ? 1 : 0;
+        topicMap.set(key, current);
+      });
+    return Array.from(topicMap.entries())
+      .map(([topic, stats]) => ({ topic, ...stats }))
+      .sort((a, b) => b.total - a.total || a.topic.localeCompare(b.topic))
+      .slice(0, 3);
+  };
+  const weeklySummary = {
+    tasks: weeklyCompletedTasks.length,
+    goals: weeklyCompletedGoals.length,
+    minutes: weeklyCompletedMinutes,
+    urgentLeft: rankedTasks.filter(task => task.effectivePriority === "urgent").length,
+    trend: paperTrendDelta,
+  };
+  const motivationalInsight = (() => {
+    if (streak >= 5) return `You’re on a ${streak}-day streak. Protect it by finishing ${suggestedTask ? `"${suggestedTask.text}"` : "one focused task"} next.`;
+    if (weeklySummary.tasks >= 6) return `Strong week so far: ${weeklySummary.tasks} tasks down and ${formatMinutes(weeklySummary.minutes)} of focused work logged.`;
+    if (weeklySummary.urgentLeft > 0 && suggestedTask) return `${subName(suggestedTask.subjectId)} needs attention. ${suggestedTask.text} is the best move to lower pressure today.`;
+    if (suggestedTask) return `Best next step: ${suggestedTask.text}. It should take about ${formatMinutes(suggestedTask.resolvedEstimateMinutes)}.`;
+    return "Add a few tasks and Markd will build a sharper daily plan for you.";
+  })();
+  const triggerCompletionBurst = (taskId) => {
+    setCompletionBurstId(taskId);
+    setTimeout(() => {
+      setCompletionBurstId(current => (current === taskId ? null : current));
+    }, 900);
+  };
+  const toggleTaskDone = (taskId) => {
+    const target = tasks.find(task => task.id === taskId);
+    if (!target) return;
+    const nextDone = !target.done;
+    setTasks(currentTasks =>
+      currentTasks.map(task =>
+        task.id === taskId
+          ? normaliseTask({
+              ...task,
+              done: nextDone,
+              completedAt: nextDone ? new Date().toISOString() : null,
+            })
+          : task
+      )
+    );
+    if (nextDone) triggerCompletionBurst(taskId);
+    if (nextDone && highlightedTaskId === taskId) setHighlightedTaskId(null);
+  };
+  const toggleGoalDone = (goalId) => {
+    const target = goals.find(goal => goal.id === goalId);
+    if (!target) return;
+    const nextDone = !target.done;
+    setGoals(currentGoals =>
+      currentGoals.map(goal =>
+        goal.id === goalId
+          ? normaliseGoal({
+              ...goal,
+              done: nextDone,
+              completedAt: nextDone ? new Date().toISOString() : null,
+            })
+          : goal
+      )
+    );
+  };
+  const focusTask = (taskId) => {
+    setHighlightedTaskId(taskId);
+    setPage("tasks");
+  };
+  const quickAddTask = () => {
+    const text = quickTaskText.trim();
+    if (!text) return;
+    const subjectId = quickTaskSubjectId || inferSubjectIdFromTitle(text) || subjects[0]?.id || null;
+    if (!subjectId) return;
+    setTasks(currentTasks => [
+      ...currentTasks,
+      buildTask({
+        subjectId,
+        text,
+        topic: quickTaskTopic.trim(),
+      }),
+    ]);
+    setQuickTaskText("");
+    setQuickTaskTopic("");
+  };
+  const downloadBackup = () => {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      profile: {
+        name: currentUser.name,
+        email: currentUser.email,
+        school: currentUser.school,
+      },
+      appData: exportPersistedState(),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `markd-backup-${toDateKey() || "export"}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+  const importBackup = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const raw = await file.text();
+      const parsed = JSON.parse(raw);
+      const nextData = normaliseAppData(parsed.appData || parsed);
+      applyPersistedState(nextData);
+    } catch (error) {
+      console.error("Failed to import backup", error);
+      window.alert("That backup file could not be imported.");
+    } finally {
+      event.target.value = "";
+    }
+  };
 
   // ─── Modal form state ───
   const updateForm = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -1296,7 +1681,10 @@ export default function Markd() {
       const newDeadlines = (data.deadlines||[]).filter(d=>d.date&&!existingTeamsDeadlines.has(d.teamsId)).map(d=>({id:uid(),subjectId:subjectMap[d.className]||null,title:d.title,date:d.date,teamsId:d.teamsId})).filter(d=>d.subjectId);
       if (newDeadlines.length>0) { setDeadlines(prev=>[...prev,...newDeadlines]); addSyncLog(`Added ${newDeadlines.length} deadline${newDeadlines.length>1?"s":""}`); }
       const existingTeamsTasks = new Set(tasks.filter(t=>t.teamsId).map(t=>t.teamsId));
-      const newTasks = (data.tasks||[]).filter(t=>!existingTeamsTasks.has(t.teamsId)).map(t=>({id:uid(),subjectId:subjectMap[t.className]||null,text:t.text,done:t.done||false,teamsId:t.teamsId})).filter(t=>t.subjectId);
+      const newTasks = (data.tasks||[])
+        .filter(t=>!existingTeamsTasks.has(t.teamsId))
+        .map(t=>buildTask({subjectId:subjectMap[t.className]||null,text:t.text,done:t.done||false,completedAt:t.done?new Date().toISOString():null,teamsId:t.teamsId}))
+        .filter(t=>t.subjectId);
       if (newTasks.length>0) { setTasks(prev=>[...prev,...newTasks]); addSyncLog(`Added ${newTasks.length} task${newTasks.length>1?"s":""}`); }
       const existingTeamsExams = new Set(exams.filter(e=>e.teamsId).map(e=>e.teamsId));
       const newExams = (data.exams||[]).filter(e=>e.date&&!existingTeamsExams.has(e.teamsId)).map(e=>({id:uid(),subjectId:subjectMap[e.className]||subjects[0]?.id,name:e.name,board:"Other",date:e.date,teamsId:e.teamsId}));
@@ -1369,9 +1757,10 @@ export default function Markd() {
     const subSummaries = subjects.map(s => { const avg=avgMark(s.id); const tp=subjectTaskProgress(s.id); const dlCount=subjectDeadlineCount(s.id); return `- ${s.name} (${s.board}, target grade ${s.target}, avg mark ${avg!==null?avg+"%":"no papers yet"}, ${dlCount} deadlines, tasks ${tp?tp.done+"/"+tp.total+" done":"none"})`; }).join("\n");
     const dlSummaries = [...deadlines].sort((a,b)=>new Date(a.date)-new Date(b.date)).map(d=>`- ${d.title} [${subName(d.subjectId)}] due ${fmtDate(d.date)} (${daysUntil(d.date)} days away)`).join("\n");
     const examSummaries = [...exams].sort((a,b)=>new Date(a.date)-new Date(b.date)).map(e=>`- ${e.name} (${e.board}) on ${fmtDate(e.date)} (${daysUntil(e.date)} days away)`).join("\n");
-    const taskSummaries = tasks.map(t=>`- [${t.done?"DONE":"TODO"}] ${t.text} [${subName(t.subjectId)}]`).join("\n");
+    const taskSummaries = tasks.map(t=>`- [${t.done?"DONE":"TODO"}] ${t.text} [${subName(t.subjectId)}] (${getPriorityMeta(getEffectivePriority(t)).label}, ${formatMinutes(getTaskEstimateMinutes(t))}${t.topic ? `, topic ${t.topic}` : ""})`).join("\n");
     const goalSummaries = goals.map(g=>`- [${g.done?"DONE":"TODO"}] ${g.text} (${g.horizon}${g.subjectId?", "+subName(g.subjectId):""})`).join("\n");
-    return `You are the AI study assistant built into Markd, a student organiser app. You are talking to ${currentUser.name}${currentUser.school ? ` from ${currentUser.school}` : ""}. Today is ${now}.\n\nHelp them stay on top of schoolwork, plan revision, suggest priorities, and motivate them. Be concise and supportive. Use their actual data below.\n\nSUBJECTS:\n${subSummaries||"None yet"}\n\nUPCOMING DEADLINES:\n${dlSummaries||"None"}\n\nUPCOMING EXAMS:\n${examSummaries||"None"}\n\nCURRENT TASKS:\n${taskSummaries||"None"}\n\nGOALS:\n${goalSummaries||"None"}`;
+    const plannerSummaries = dailyPlannerTasks.map(task => `- ${task.text} [${subName(task.subjectId)}] (${getPriorityMeta(task.effectivePriority).label}, ${formatMinutes(task.resolvedEstimateMinutes)})`).join("\n");
+    return `You are the AI study assistant built into Markd, a student organiser app. You are talking to ${currentUser.name}${currentUser.school ? ` from ${currentUser.school}` : ""}. Today is ${now}. Revision mode is ${revisionMode ? "enabled" : "disabled"}.\n\nHelp them stay on top of schoolwork, plan revision, suggest priorities, and motivate them. Be concise and supportive. Use their actual data below.\n\nTODAY'S SMART PLAN:\n${plannerSummaries||"No planner suggestions yet"}\n\nSUBJECTS:\n${subSummaries||"None yet"}\n\nUPCOMING DEADLINES:\n${dlSummaries||"None"}\n\nUPCOMING EXAMS:\n${examSummaries||"None"}\n\nCURRENT TASKS:\n${taskSummaries||"None"}\n\nGOALS:\n${goalSummaries||"None"}`;
   };
 
   const sendAiMessage = async () => {
@@ -1402,11 +1791,21 @@ export default function Markd() {
 
   // ─── Add handlers ───
   const addSubject = () => { if(!form.name) return; setSubjects(s=>[...s,{id:uid(),name:form.name,board:form.board||"AQA",target:form.target||"5",colour:form.colour||PALETTE[0]}]); setModal(null); };
-  const addTask = () => { if(!form.text||!form.subjectId) return; setTasks(t=>[...t,{id:uid(),subjectId:form.subjectId,text:form.text,done:false}]); setModal(null); };
+  const addTask = () => {
+    if(!form.text||!form.subjectId) return;
+    setTasks(t=>[...t,buildTask({
+      subjectId:form.subjectId,
+      text:form.text,
+      priority:form.priority,
+      estimateMinutes:form.estimateMinutes,
+      topic:form.topic,
+    })]);
+    setModal(null);
+  };
   const addDeadline = () => { if(!form.title||!form.subjectId||!form.date) return; setDeadlines(d=>[...d,{id:uid(),subjectId:form.subjectId,title:form.title,date:form.date}]); setModal(null); };
   const addExam = () => { if(!form.name||!form.subjectId||!form.date) return; setExams(e=>[...e,{id:uid(),subjectId:form.subjectId,name:form.name,board:form.board||sub(form.subjectId)?.board||"AQA",date:form.date}]); setModal(null); };
   const addPaper = () => { if(!form.subjectId||!form.title||!form.scored||!form.total) return; setPapers(p=>[...p,{id:uid(),subjectId:form.subjectId,title:form.title,year:form.year||"",paper:form.paper||"",scored:Number(form.scored),total:Number(form.total),file:form.file||null}]); setModal(null); };
-  const addGoal = () => { if(!form.text) return; setGoals(g=>[...g,{id:uid(),text:form.text,horizon:form.horizon||"3 months",subjectId:form.subjectId||null,done:false}]); setModal(null); };
+  const addGoal = () => { if(!form.text) return; setGoals(g=>[...g,buildGoal({text:form.text,horizon:form.horizon||"3 months",subjectId:form.subjectId||null,done:false})]); setModal(null); };
   const addPortfolio = () => { if(!form.title||!form.subjectId) return; setPortfolio(p=>[...p,{id:uid(),subjectId:form.subjectId,title:form.title,type:form.type||"Project",desc:form.desc||"",tags:(form.tags||"").split(",").map(t=>t.trim()).filter(Boolean)}]); setModal(null); };
   const addActivity = () => { if(!form.name) return; setActivities(a=>[...a,{id:uid(),name:form.name,role:form.role||"",organisation:form.organisation||"",desc:form.desc||"",colour:form.colour||PALETTE[activities.length%PALETTE.length],hoursPerWeek:Number(form.hoursPerWeek)||0,events:[],achievements:(form.achievements||"").split("\n").map(s=>s.trim()).filter(Boolean),tags:(form.tags||"").split(",").map(t=>t.trim()).filter(Boolean)}]); setModal(null); };
 
@@ -1431,6 +1830,131 @@ export default function Markd() {
       <div className="empty-state-icon"><Icon d={icon} size={32} color="var(--muted)"/></div>
       <div className="empty-state-msg">{message}</div>
       {action && <button className="empty-state-btn" onClick={action}>{actionLabel}</button>}
+    </div>
+  );
+  const renderTaskMeta = (task) => {
+    const priority = task.effectivePriority || getEffectivePriority(task);
+    const priorityMeta = getPriorityMeta(priority);
+    const estimate = task.resolvedEstimateMinutes || getTaskEstimateMinutes(task);
+    return (
+      <div className="task-meta-row">
+        <span className="badge" style={{background:priorityMeta.color+"22",color:priorityMeta.color}}>{priorityMeta.label}</span>
+        <span className="task-time-pill">{formatMinutes(estimate)}</span>
+        {task.topic && <span className="task-topic-pill">{task.topic}</span>}
+      </div>
+    );
+  };
+  const renderQuickAddComposer = () => {
+    const previewSubjectId = quickTaskSubjectId || inferSubjectIdFromTitle(quickTaskText) || null;
+    const previewPriority = getPriorityMeta(
+      getEffectivePriority({
+        text: quickTaskText,
+        priority: inferPriorityFromText(quickTaskText),
+        subjectId: previewSubjectId,
+        createdAt: new Date().toISOString(),
+      })
+    );
+    const previewEstimate = estimateFromText(quickTaskText);
+    return (
+      <div className="quick-add-card">
+        <div className="quick-add-header">
+          <div>
+            <div className="quick-add-title">Quick add</div>
+            <div className="quick-add-sub">Create a task instantly. Markd will suggest the time and urgency.</div>
+          </div>
+        </div>
+        <div className="quick-add-grid">
+          <input
+            className="modal-input"
+            placeholder="What do you need to do?"
+            value={quickTaskText}
+            onChange={event => setQuickTaskText(event.target.value)}
+            onKeyDown={event => event.key === "Enter" && quickAddTask()}
+          />
+          <select className="modal-input" value={quickTaskSubjectId} onChange={event => setQuickTaskSubjectId(event.target.value)}>
+            <option value="">Auto subject</option>
+            {subjects.map(subject => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+          </select>
+          <input
+            className="modal-input"
+            placeholder="Topic (optional)"
+            value={quickTaskTopic}
+            onChange={event => setQuickTaskTopic(event.target.value)}
+            onKeyDown={event => event.key === "Enter" && quickAddTask()}
+          />
+          <button className="quick-add-btn" onClick={quickAddTask} disabled={!quickTaskText.trim()}>Add task</button>
+        </div>
+        {quickTaskText.trim() && (
+          <div className="quick-add-preview">
+            <span>Suggested plan:</span>
+            <span className="badge" style={{background:previewPriority.color+"22",color:previewPriority.color}}>{previewPriority.label}</span>
+            <span className="task-time-pill">{formatMinutes(previewEstimate)}</span>
+            {previewSubjectId && <span className="task-topic-pill">{subName(previewSubjectId)}</span>}
+          </div>
+        )}
+      </div>
+    );
+  };
+  const renderPlannerPanel = () => (
+    <div className="planner-card">
+      <div className="planner-head">
+        <div>
+          <div className="planner-eyebrow">Smart daily planner</div>
+          <div className="planner-title">Today’s focus list</div>
+        </div>
+        <button className={`revision-toggle ${revisionMode ? "active" : ""}`} onClick={() => setRevisionMode(mode => !mode)}>
+          {revisionMode ? "Revision mode on" : "Revision mode off"}
+        </button>
+      </div>
+      <div className="planner-sub">Refreshes every day and carries unfinished work forward automatically.</div>
+      <div className="planner-summary-grid">
+        <div className="planner-summary-card">
+          <span className="planner-summary-label">Planned focus</span>
+          <span className="planner-summary-value">{formatMinutes(dailyPlannerTasks.reduce((sum, task) => sum + task.resolvedEstimateMinutes, 0))}</span>
+        </div>
+        <div className="planner-summary-card">
+          <span className="planner-summary-label">Done today</span>
+          <span className="planner-summary-value">{completedTodayTasks.length + completedTodayGoals.length}</span>
+        </div>
+        <div className="planner-summary-card">
+          <span className="planner-summary-label">Streak</span>
+          <span className="planner-summary-value">{streak} day{streak === 1 ? "" : "s"}</span>
+        </div>
+      </div>
+      {suggestedTask ? (
+        <div className="next-task-card">
+          <div style={{flex:1}}>
+            <div className="next-task-label">Do next</div>
+            <div className="next-task-name">{suggestedTask.text}</div>
+            <div className="next-task-sub">{subName(suggestedTask.subjectId)}</div>
+            {renderTaskMeta(suggestedTask)}
+          </div>
+          <button className="next-task-btn" onClick={() => focusTask(suggestedTask.id)}>Do Next</button>
+        </div>
+      ) : (
+        <div className="empty-state" style={{padding:"18px 0 8px"}}>Add a few tasks and Markd will build your plan.</div>
+      )}
+      {dailyPlannerTasks.length > 0 && (
+        <div className="planner-task-list">
+          {dailyPlannerTasks.map(task => (
+            <div key={task.id} className={`planner-task-item ${highlightedTaskId === task.id ? "highlighted" : ""}`}>
+              <button
+                className={`task-check ${task.done ? "checked" : ""} ${completionBurstId === task.id ? "burst" : ""}`}
+                style={{borderColor:subColour(task.subjectId),background:task.done?subColour(task.subjectId):"transparent"}}
+                onClick={() => toggleTaskDone(task.id)}
+              >
+                {task.done ? "✓" : ""}
+              </button>
+              <div style={{flex:1}}>
+                <div className="planner-task-name">{task.text}</div>
+                <div className="planner-task-sub">{subName(task.subjectId)}</div>
+                {renderTaskMeta(task)}
+              </div>
+              <button className="focus-chip" onClick={() => focusTask(task.id)}>Open</button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -1464,11 +1988,46 @@ export default function Markd() {
             <button className="onboarding-btn" onClick={()=>{ setPage("subjects"); openModal("addSubject"); }}>Add your first subject</button>
           </div>
         ) : (<>
+          {renderPlannerPanel()}
           <div className="stat-row">
             <div className="stat-card"><div className="stat-num">{totalDeadlines}</div><div className="stat-label">Deadlines</div></div>
             <div className="stat-card"><div className="stat-num">{tasksDone}/{totalTasks}</div><div className="stat-label">Tasks Done</div></div>
             <div className="stat-card"><div className="stat-num">{subjects.length}</div><div className="stat-label">Subjects</div></div>
           </div>
+          <div className="summary-grid">
+            <div className="summary-card">
+              <div className="summary-card-title">Weekly summary</div>
+              <div className="summary-card-main">{weeklySummary.tasks} tasks</div>
+              <div className="summary-card-sub">{formatMinutes(weeklySummary.minutes)} focused work · {weeklySummary.goals} goals finished</div>
+            </div>
+            <div className="summary-card">
+              <div className="summary-card-title">Level {level}</div>
+              <div className="progress-bar"><div className="progress-fill" style={{width:`${Math.round((levelProgress / XP_PER_LEVEL) * 100)}%`,background:"var(--accent)"}}/></div>
+              <div className="summary-card-sub">{levelProgress}/{XP_PER_LEVEL} XP into this level</div>
+            </div>
+            <div className="summary-card">
+              <div className="summary-card-title">Momentum</div>
+              <div className="summary-card-main">{streak} day streak</div>
+              <div className="summary-card-sub">{unlockedAchievements.length} achievements unlocked</div>
+            </div>
+          </div>
+          <div className="insight-card">
+            <div className="insight-title">Insight</div>
+            <div className="insight-copy">{motivationalInsight}</div>
+          </div>
+          {!revisionMode && unlockedAchievements.length > 0 && (
+            <>
+              <div className="section-header"><span>Achievements</span><span className="link-btn" style={{cursor:"default"}}>{unlockedAchievements.length} unlocked</span></div>
+              <div className="achievement-grid">
+                {unlockedAchievements.slice(0, 4).map(achievement => (
+                  <div key={achievement.id} className="achievement-card">
+                    <div className="achievement-title">{achievement.title}</div>
+                    <div className="achievement-desc">{achievement.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           {nextExam && (
             <div className="next-exam-card" onClick={()=>setPage("exams")}>
               <div className="next-exam-label">Next Exam</div>
@@ -1477,18 +2036,37 @@ export default function Markd() {
               <div className="next-exam-days" style={{color:countdownColor(daysUntil(nextExam.date))}}>{daysUntil(nextExam.date)} days</div>
             </div>
           )}
+          <div className="section-header"><span>Subject health</span><button className="link-btn" onClick={()=>setPage("subjects")}>Open subjects <Icon d={icons.chevron} size={14}/></button></div>
+          <div className="health-grid">
+            {subjects.map(subject => {
+              const health = getSubjectHealth(subject.id);
+              const nextSubjectExam = getNextExamForSubject(subject.id);
+              return (
+                <div key={subject.id} className="health-card" style={{borderTop:`3px solid ${subject.colour}`}}>
+                  <div className="health-card-name">{subject.name}</div>
+                  <div className="health-card-score" style={{color:getHealthTone(health)}}>{health}</div>
+                  <div className="health-card-label">health score</div>
+                  <div className="health-card-sub">{nextSubjectExam ? `${daysUntil(nextSubjectExam.date)} days to ${nextSubjectExam.name}` : "No exam scheduled"}</div>
+                </div>
+              );
+            })}
+          </div>
           {sortedDeadlines.length > 0 && <>
             <div className="section-header"><span>Upcoming Deadlines</span><button className="link-btn" onClick={()=>setPage("deadlines")}>View all <Icon d={icons.chevron} size={14}/></button></div>
             {sortedDeadlines.map(dl => { const u=urgency(dl.date); return (<div key={dl.id} className="list-item" style={{borderLeft:`3px solid ${subColour(dl.subjectId)}`}}><div><div className="list-item-title">{dl.title}</div><div className="list-item-sub">{fmtDate(dl.date)}</div></div><span className="badge" style={{background:u.color+"22",color:u.color}}>{u.label}</span></div>); })}
           </>}
-          <div className="section-header"><span>Subjects</span><button className="link-btn" onClick={()=>setPage("subjects")}>View all <Icon d={icons.chevron} size={14}/></button></div>
-          <div className="subjects-mini-grid">
-            {subjects.map(s => (<div key={s.id} className="subject-mini" style={{borderTop:`3px solid ${s.colour}`}}><div className="subject-mini-name">{s.name}</div><div className="subject-mini-stats"><span>Target: {s.target}</span>{avgMark(s.id)!==null&&<span>Avg: {avgMark(s.id)}%</span>}</div></div>))}
-          </div>
-          {recentTasks.length > 0 && <>
-            <div className="section-header"><span>Recent Tasks</span><button className="link-btn" onClick={()=>setPage("tasks")}>View all <Icon d={icons.chevron} size={14}/></button></div>
-            {recentTasks.map(t => (<div key={t.id} className="list-item" style={{borderLeft:`3px solid ${subColour(t.subjectId)}`}}><div style={{display:"flex",alignItems:"center",gap:8}}><span className={`task-check ${t.done?"checked":""}`} style={{borderColor:subColour(t.subjectId),background:t.done?subColour(t.subjectId):"transparent"}}>{t.done?"✓":""}</span><span style={{textDecoration:t.done?"line-through":"none",color:t.done?"var(--muted)":"var(--text)"}}>{t.text}</span></div></div>))}
-          </>}
+          {!revisionMode && (
+            <>
+              <div className="section-header"><span>Subjects</span><button className="link-btn" onClick={()=>setPage("subjects")}>View all <Icon d={icons.chevron} size={14}/></button></div>
+              <div className="subjects-mini-grid">
+                {subjects.map(s => (<div key={s.id} className="subject-mini" style={{borderTop:`3px solid ${s.colour}`}}><div className="subject-mini-name">{s.name}</div><div className="subject-mini-stats"><span>Target: {s.target}</span>{avgMark(s.id)!==null&&<span>Avg: {avgMark(s.id)}%</span>}</div></div>))}
+              </div>
+              {recentTasks.length > 0 && <>
+                <div className="section-header"><span>Recent Tasks</span><button className="link-btn" onClick={()=>setPage("tasks")}>View all <Icon d={icons.chevron} size={14}/></button></div>
+                {recentTasks.map(t => (<div key={t.id} className="list-item" style={{borderLeft:`3px solid ${subColour(t.subjectId)}`}}><div style={{display:"flex",alignItems:"center",gap:8}}><span className={`task-check ${t.done?"checked":""}`} style={{borderColor:subColour(t.subjectId),background:t.done?subColour(t.subjectId):"transparent"}}>{t.done?"✓":""}</span><div><span style={{textDecoration:t.done?"line-through":"none",color:t.done?"var(--muted)":"var(--text)"}}>{t.text}</span>{renderTaskMeta(t)}</div></div></div>))}
+              </>}
+            </>
+          )}
         </>)}
       </div>
     );
@@ -1500,6 +2078,9 @@ export default function Markd() {
       {subjects.length === 0 ? <EmptyState icon={icons.book} message="No subjects yet. Tap + to add your first subject." action={()=>openModal("addSubject")} actionLabel="Add Subject"/> :
       subjects.map(s => {
         const avg=avgMark(s.id); const dlCount=subjectDeadlineCount(s.id); const tp=subjectTaskProgress(s.id);
+        const health = getSubjectHealth(s.id);
+        const nextSubjectExam = getNextExamForSubject(s.id);
+        const topicProgress = getTopicProgress(s.id);
         return (
           <div key={s.id} className="subject-card" style={{borderLeft:`4px solid ${s.colour}`}}>
             <div className="subject-card-header"><div><div className="subject-card-name">{s.name}</div><div className="subject-card-board">{s.board}</div></div><DeleteBtn onClick={()=>deleteSubject(s.id)}/></div>
@@ -1507,8 +2088,22 @@ export default function Markd() {
               <div className="subject-stat"><span className="subject-stat-label">Target</span><span className="subject-stat-val" style={{color:s.colour}}>{s.target}</span></div>
               <div className="subject-stat"><span className="subject-stat-label">Avg Mark</span><span className="subject-stat-val">{avg!==null?avg+"%":"---"}</span></div>
               <div className="subject-stat"><span className="subject-stat-label">Deadlines</span><span className="subject-stat-val">{dlCount}</span></div>
+              <div className="subject-stat"><span className="subject-stat-label">Health</span><span className="subject-stat-val" style={{color:getHealthTone(health)}}>{health}</span></div>
             </div>
             {tp && (<div className="progress-wrap"><div className="progress-bar"><div className="progress-fill" style={{width:`${(tp.done/tp.total)*100}%`,background:s.colour}}/></div><span className="progress-label">{tp.done}/{tp.total} tasks</span></div>)}
+            <div className="subject-card-meta">
+              <span>{nextSubjectExam ? `${daysUntil(nextSubjectExam.date)} days to ${nextSubjectExam.name}` : "No exam scheduled"}</span>
+              {avg !== null && <span>Projected grade {getProjectedGrade(s) || s.target}</span>}
+            </div>
+            {topicProgress.length > 0 && (
+              <div className="topic-row">
+                {topicProgress.map(topic => (
+                  <span key={topic.topic} className="topic-chip">
+                    {topic.topic} {topic.done}/{topic.total}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
@@ -1516,20 +2111,30 @@ export default function Markd() {
   );
 
   const renderTasks = () => {
-    const grouped = groupBySubject(tasks);
+    const sortedTasks = [...tasks].sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      return getTaskScore(b) - getTaskScore(a);
+    });
+    const grouped = groupBySubject(sortedTasks);
     return (
       <div className="page">
         <h2 className="page-title">Tasks</h2>
+        {renderPlannerPanel()}
+        {renderQuickAddComposer()}
         {tasks.length === 0 ? <EmptyState icon={icons.check} message="No tasks yet. Tap + to add a task." action={()=>openModal("addTask")} actionLabel="Add Task"/> :
         Object.entries(grouped).map(([sId,items]) => (
           <div key={sId} className="group-section">
             <div className="group-label" style={{color:subColour(sId)}}>{subName(sId)}</div>
             {items.map(t => (
-              <div key={t.id} className="list-item" style={{borderLeft:`3px solid ${subColour(t.subjectId)}`}}>
+              <div key={t.id} className={`list-item task-list-item ${highlightedTaskId === t.id ? "highlighted" : ""} ${completionBurstId === t.id ? "completed-burst" : ""}`} style={{borderLeft:`3px solid ${subColour(t.subjectId)}`}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
-                  <span className={`task-check ${t.done?"checked":""}`} style={{borderColor:subColour(t.subjectId),background:t.done?subColour(t.subjectId):"transparent"}} onClick={()=>setTasks(ts=>ts.map(x=>x.id===t.id?{...x,done:!x.done}:x))}>{t.done?"✓":""}</span>
-                  <span style={{textDecoration:t.done?"line-through":"none",color:t.done?"var(--muted)":"var(--text)"}}>{t.text}</span>
+                  <span className={`task-check ${t.done?"checked":""} ${completionBurstId === t.id ? "burst" : ""}`} style={{borderColor:subColour(t.subjectId),background:t.done?subColour(t.subjectId):"transparent"}} onClick={()=>toggleTaskDone(t.id)}>{t.done?"✓":""}</span>
+                  <div style={{flex:1}}>
+                    <div style={{textDecoration:t.done?"line-through":"none",color:t.done?"var(--muted)":"var(--text)"}}>{t.text}</div>
+                    {renderTaskMeta(t)}
+                  </div>
                 </div>
+                {!t.done && <button className="focus-chip" onClick={()=>focusTask(t.id)}>Next</button>}
                 <DeleteBtn onClick={()=>deleteTask(t.id)}/>
               </div>
             ))}
@@ -1591,9 +2196,21 @@ export default function Markd() {
           papers.length === 0 ? <EmptyState icon={icons.file} message="No papers logged yet. Tap + to add one." action={()=>openModal("addPaper")} actionLabel="Add Paper"/> :
           Object.entries(grouped).map(([sId,items]) => {
             const sAvg = Math.round(items.reduce((a,p)=>a+(p.scored/p.total)*100,0)/items.length);
+            const subject = sub(sId);
+            const projected = getProjectedGrade(subject);
             return (
               <div key={sId} className="group-section">
                 <div className="group-label" style={{color:subColour(sId)}}>{subName(sId)} <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,marginLeft:8,color:"var(--text)"}}>Avg: {sAvg}%</span></div>
+                <div className="paper-summary-strip">
+                  <span className="paper-summary-pill">Trend {items.length >= 2 ? `${Math.round((items[items.length - 1].scored / items[items.length - 1].total) * 100) - Math.round((items[0].scored / items[0].total) * 100) >= 0 ? "+" : ""}${Math.round((items[items.length - 1].scored / items[items.length - 1].total) * 100) - Math.round((items[0].scored / items[0].total) * 100)}%` : "Building"}</span>
+                  {projected && <span className="paper-summary-pill">Projected {projected}</span>}
+                </div>
+                <div className="trend-bars">
+                  {items.map(paper => {
+                    const pct = Math.round((paper.scored / paper.total) * 100);
+                    return <div key={paper.id} className="trend-bar" style={{height:`${Math.max(18, pct)}%`, background: pct>=70?"var(--accent3)":pct>=50?"var(--accent2)":"var(--danger)"}} title={`${paper.title}: ${pct}%`} />;
+                  })}
+                </div>
                 {items.map(p => { const pct=Math.round((p.scored/p.total)*100); return (
                   <div key={p.id} className="paper-card" style={{borderLeft:`3px solid ${subColour(p.subjectId)}`}}>
                     <div className="paper-header"><div><div className="list-item-title">{p.title}</div><div className="list-item-sub">{p.year}{p.paper?` - Paper ${p.paper}`:""}</div></div><div style={{display:"flex",alignItems:"center",gap:8}}><div className="paper-score">{p.scored}/{p.total} <span className="paper-pct">({pct}%)</span></div><DeleteBtn onClick={()=>deletePaper(p.id)}/></div></div>
@@ -1629,7 +2246,7 @@ export default function Markd() {
           filtered.map(g => (
             <div key={g.id} className="list-item">
               <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1}}>
-                <span className={`goal-check ${g.done?"checked":""}`} onClick={()=>setGoals(gs=>gs.map(x=>x.id===g.id?{...x,done:!x.done}:x))}/>
+                <span className={`goal-check ${g.done?"checked":""}`} onClick={()=>toggleGoalDone(g.id)}/>
                 <div><span style={{color:g.done?"var(--muted)":"var(--text)",textDecoration:g.done?"line-through":"none"}}>{g.text}</span>{g.subjectId&&<div className="goal-subject-tag" style={{background:subColour(g.subjectId)+"22",color:subColour(g.subjectId)}}>{subName(g.subjectId)}</div>}</div>
               </div>
               <DeleteBtn onClick={()=>deleteGoal(g.id)}/>
@@ -1786,12 +2403,28 @@ export default function Markd() {
                 <button className={`theme-option ${theme==="dark"?"active":""}`} onClick={()=>setTheme("dark")}><div className="theme-preview dark-preview"><div className="theme-preview-bar"/><div className="theme-preview-card"/></div><span>Dark</span></button>
                 <button className={`theme-option ${theme==="light"?"active":""}`} onClick={()=>setTheme("light")}><div className="theme-preview light-preview"><div className="theme-preview-bar"/><div className="theme-preview-card"/></div><span>Light</span></button>
               </div>
+              <div className="teams-autosync-row" style={{marginTop:12}}>
+                <span>Revision mode</span>
+                <button className={`toggle ${revisionMode?"on":""}`} onClick={()=>setRevisionMode(!revisionMode)}><div className="toggle-knob"/></button>
+              </div>
+            </div>
+
+            <div className="settings-section">
+              <div className="settings-section-title">Backup</div>
+              <div className="teams-actions">
+                <button className="teams-sync-btn" onClick={downloadBackup}><Icon d={icons.download} size={14} color="var(--accent)"/><span>Export JSON</span></button>
+                <label className="teams-disconnect-btn" style={{display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                  <span>Import backup</span>
+                  <input type="file" accept=".json,application/json" onChange={importBackup} style={{display:"none"}} />
+                </label>
+              </div>
             </div>
 
             <div className="settings-section">
               <div className="settings-section-title">About</div>
               <div className="settings-info">
                 <div className="settings-info-row"><span>Mode</span><span>{demoMode ? "Demo admin" : "Cloud account"}</span></div>
+                <div className="settings-info-row"><span>View</span><span>{revisionMode ? "Revision mode" : "Full mode"}</span></div>
                 {currentUser.school&&<div className="settings-info-row"><span>School</span><span>{currentUser.school}</span></div>}
                 <div className="settings-info-row"><span>Subjects</span><span>{subjects.length}</span></div>
                 <div className="settings-info-row"><span>Tasks</span><span>{tasks.length}</span></div>
@@ -1858,7 +2491,38 @@ export default function Markd() {
           <button className="browse-switch" onClick={()=>setSubjectTab("browse")}>Or browse GCSE / IGCSE / IB subjects</button>
         </>);
       }
-    } else if (modal==="addTask") { title="Add Task"; onSave=addTask; content=(<><Field label="Description"><input className="modal-input" placeholder="e.g. Annotate chapter 3" value={form.text||""} onChange={e=>updateForm("text",e.target.value)}/></Field><Field label="Subject"><SubjectSelect/></Field></>); }
+    } else if (modal==="addTask") {
+      title="Add Task";
+      onSave=addTask;
+      const previewPriority = getPriorityMeta(
+        getEffectivePriority({
+          text: form.text || "",
+          priority: form.priority || inferPriorityFromText(form.text || ""),
+          subjectId: form.subjectId || null,
+          createdAt: new Date().toISOString(),
+        })
+      );
+      content=(<>
+        <Field label="Description"><input className="modal-input" placeholder="e.g. Annotate chapter 3" value={form.text||""} onChange={e=>updateForm("text",e.target.value)}/></Field>
+        <Field label="Subject"><SubjectSelect/></Field>
+        <Field label="Topic (optional)"><input className="modal-input" placeholder="e.g. Macbeth themes" value={form.topic||""} onChange={e=>updateForm("topic",e.target.value)}/></Field>
+        <div style={{display:"flex",gap:8}}>
+          <div style={{flex:1}}>
+            <Field label="Priority"><select className="modal-input" value={form.priority||inferPriorityFromText(form.text||"")} onChange={e=>updateForm("priority",e.target.value)}>
+              {PRIORITY_ORDER.map(priority => <option key={priority} value={priority}>{getPriorityMeta(priority).label}</option>)}
+            </select></Field>
+          </div>
+          <div style={{flex:1}}>
+            <Field label="Minutes"><input className="modal-input" type="number" min="10" step="5" placeholder="30" value={form.estimateMinutes||estimateFromText(form.text||"")} onChange={e=>updateForm("estimateMinutes",e.target.value)}/></Field>
+          </div>
+        </div>
+        <div className="quick-add-preview" style={{marginTop:-2}}>
+          <span>Suggested:</span>
+          <span className="badge" style={{background:previewPriority.color+"22",color:previewPriority.color}}>{previewPriority.label}</span>
+          <span className="task-time-pill">{formatMinutes(Number(form.estimateMinutes)||estimateFromText(form.text||""))}</span>
+        </div>
+      </>);
+    }
     else if (modal==="addDeadline") { title="Add Deadline"; onSave=addDeadline; content=(<><Field label="Title"><input className="modal-input" placeholder="e.g. Essay draft" value={form.title||""} onChange={e=>updateForm("title",e.target.value)}/></Field><Field label="Subject"><SubjectSelect/></Field><Field label="Due date"><input className="modal-input" type="date" value={form.date||""} onChange={e=>updateForm("date",e.target.value)}/></Field></>); }
     else if (modal==="addExam") { title="Add Exam"; onSave=addExam; content=(<><Field label="Exam name"><input className="modal-input" placeholder="e.g. Paper 1" value={form.name||""} onChange={e=>updateForm("name",e.target.value)}/></Field><Field label="Subject"><SubjectSelect/></Field><Field label="Exam board"><select className="modal-input" value={form.board||""} onChange={e=>updateForm("board",e.target.value)}><option value="">Select board</option>{EXAM_BOARDS.map(b=><option key={b} value={b}>{b}</option>)}</select></Field><Field label="Date"><input className="modal-input" type="date" value={form.date||""} onChange={e=>updateForm("date",e.target.value)}/></Field></>); }
     else if (modal==="examActions") {
@@ -1913,6 +2577,7 @@ export default function Markd() {
   // MAIN RENDER
   // ═══════════════════════════════════
   const pages = { home:renderHome, subjects:renderSubjects, tasks:renderTasks, deadlines:renderDeadlines, exams:renderExams, papers:renderPapers, goals:renderGoals, activities:renderActivities, portfolio:renderPortfolio };
+  const visibleNavItems = revisionMode ? NAV_ITEMS.filter(item => !["activities", "portfolio"].includes(item.key)) : NAV_ITEMS;
 
   return (
     <>
@@ -2158,6 +2823,78 @@ export default function Markd() {
         .swatch { width:30px; height:30px; border-radius:50%; border:3px solid transparent; cursor:pointer; transition:border-color 0.15s,transform 0.15s; }
         .swatch.active { border-color:var(--text); transform:scale(1.15); }
         .top-bar-right { display:flex; align-items:center; gap:10px; }
+        .revision-trigger { padding:8px 12px; border-radius:999px; border:1px solid rgba(124,106,247,0.24); background:rgba(124,106,247,0.08); color:var(--accent); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; transition:transform 0.2s ease, background 0.2s ease, border-color 0.2s ease; }
+        .revision-trigger.active { background:var(--accent); color:white; border-color:var(--accent); }
+        .revision-trigger:hover { transform:translateY(-2px); }
+        .planner-card, .quick-add-card, .summary-card, .insight-card, .achievement-card, .health-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; transition:transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease; }
+        .planner-card:hover, .quick-add-card:hover, .summary-card:hover, .insight-card:hover, .achievement-card:hover, .health-card:hover { transform:translateY(-4px); border-color:rgba(124,106,247,0.26); box-shadow:0 16px 28px rgba(0,0,0,0.16); }
+        .planner-card { padding:18px; margin-bottom:16px; }
+        .planner-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:6px; }
+        .planner-eyebrow { font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+        .planner-title { font-family:'Syne',sans-serif; font-size:20px; font-weight:700; }
+        .planner-sub { color:var(--muted); font-size:11px; line-height:1.5; margin-bottom:14px; }
+        .revision-toggle { padding:8px 12px; border-radius:999px; border:1px solid var(--border); background:var(--surface2); color:var(--muted); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; white-space:nowrap; transition:transform 0.2s ease, border-color 0.2s ease, background 0.2s ease; }
+        .revision-toggle.active { background:rgba(124,106,247,0.12); color:var(--accent); border-color:rgba(124,106,247,0.24); }
+        .planner-summary-grid, .summary-grid, .achievement-grid, .health-grid { display:grid; gap:10px; }
+        .planner-summary-grid { grid-template-columns:repeat(3,1fr); margin-bottom:14px; }
+        .planner-summary-card { background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:4px; }
+        .planner-summary-label { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:0.8px; }
+        .planner-summary-value { font-family:'Syne',sans-serif; font-size:18px; font-weight:700; }
+        .next-task-card { background:linear-gradient(135deg, rgba(124,106,247,0.12), rgba(106,247,196,0.08)); border:1px solid rgba(124,106,247,0.18); border-radius:14px; padding:16px; display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+        .next-task-label { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+        .next-task-name { font-family:'Syne',sans-serif; font-size:17px; font-weight:700; }
+        .next-task-sub { color:var(--muted); font-size:11px; margin-top:2px; margin-bottom:8px; }
+        .next-task-btn, .quick-add-btn, .focus-chip { border:none; cursor:pointer; transition:transform 0.2s ease, filter 0.2s ease; }
+        .next-task-btn:hover, .quick-add-btn:hover, .focus-chip:hover { transform:translateY(-2px); filter:brightness(1.03); }
+        .next-task-btn { padding:10px 14px; border-radius:10px; background:var(--accent); color:white; font-family:'Syne',sans-serif; font-weight:700; font-size:13px; white-space:nowrap; }
+        .planner-task-list { display:flex; flex-direction:column; gap:8px; }
+        .planner-task-item { display:flex; align-items:center; gap:10px; background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 14px; transition:transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease; }
+        .planner-task-item:hover, .task-list-item:hover { border-color:rgba(124,106,247,0.24); box-shadow:0 12px 24px rgba(0,0,0,0.12); }
+        .planner-task-item.highlighted, .task-list-item.highlighted { border-color:var(--accent); box-shadow:0 0 0 2px rgba(124,106,247,0.14); }
+        .planner-task-name { font-size:13px; color:var(--text); }
+        .planner-task-sub { color:var(--muted); font-size:10px; margin-top:2px; margin-bottom:6px; }
+        .task-meta-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:6px; }
+        .task-time-pill, .task-topic-pill, .paper-summary-pill { font-size:10px; padding:3px 8px; border-radius:999px; background:var(--surface2); border:1px solid var(--border); color:var(--muted); }
+        .task-topic-pill { color:var(--text); }
+        .focus-chip { padding:8px 12px; border-radius:999px; background:rgba(124,106,247,0.08); color:var(--accent); font-family:'DM Mono',monospace; font-size:11px; white-space:nowrap; }
+        .quick-add-card { padding:16px; margin-bottom:16px; }
+        .quick-add-header { display:flex; justify-content:space-between; gap:10px; margin-bottom:10px; }
+        .quick-add-title { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; }
+        .quick-add-sub { color:var(--muted); font-size:11px; line-height:1.5; margin-top:4px; }
+        .quick-add-grid { display:grid; grid-template-columns:1.6fr 1fr 1fr auto; gap:8px; align-items:center; }
+        .quick-add-btn { padding:11px 14px; border-radius:10px; background:var(--accent); color:white; font-family:'Syne',sans-serif; font-weight:700; font-size:13px; }
+        .quick-add-btn:disabled { opacity:0.45; cursor:default; }
+        .quick-add-preview { display:flex; align-items:center; flex-wrap:wrap; gap:6px; color:var(--muted); font-size:11px; margin-top:10px; }
+        .summary-grid { grid-template-columns:repeat(3,1fr); margin-bottom:14px; }
+        .summary-card { padding:16px; }
+        .summary-card-title { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+        .summary-card-main { font-family:'Syne',sans-serif; font-size:22px; font-weight:700; margin-bottom:6px; }
+        .summary-card-sub { color:var(--muted); font-size:11px; line-height:1.5; }
+        .insight-card { padding:16px; margin-bottom:16px; background:linear-gradient(135deg, rgba(247,162,106,0.12), rgba(124,106,247,0.08)); }
+        .insight-title { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; margin-bottom:8px; }
+        .insight-copy { color:var(--text); font-size:12px; line-height:1.6; }
+        .achievement-grid { grid-template-columns:repeat(2,1fr); margin-bottom:12px; }
+        .achievement-card { padding:14px; }
+        .achievement-title { font-family:'Syne',sans-serif; font-size:14px; font-weight:700; margin-bottom:6px; }
+        .achievement-desc { color:var(--muted); font-size:11px; line-height:1.5; }
+        .health-grid { grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); margin-bottom:6px; }
+        .health-card { padding:14px; }
+        .health-card-name { font-family:'Syne',sans-serif; font-size:13px; font-weight:700; margin-bottom:10px; }
+        .health-card-score { font-family:'Syne',sans-serif; font-size:28px; font-weight:800; line-height:1; }
+        .health-card-label { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:1px; margin-top:4px; }
+        .health-card-sub { color:var(--muted); font-size:11px; line-height:1.5; margin-top:8px; }
+        .subject-card-meta { display:flex; flex-wrap:wrap; gap:8px; color:var(--muted); font-size:11px; margin-top:10px; }
+        .topic-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+        .topic-chip { font-size:10px; padding:4px 8px; border-radius:999px; background:var(--surface2); border:1px solid var(--border); color:var(--text); }
+        .paper-summary-strip { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+        .trend-bars { height:74px; display:flex; align-items:flex-end; gap:6px; padding:8px 0 12px; }
+        .trend-bar { flex:1; min-height:18px; border-radius:8px 8px 2px 2px; opacity:0.95; transition:transform 0.2s ease, opacity 0.2s ease; }
+        .trend-bar:hover { transform:translateY(-3px); opacity:1; }
+        .task-list-item.completed-burst, .planner-task-item.completed-burst { animation:taskCelebrate 0.7s ease; }
+        .task-check.burst { animation:checkBounce 0.55s cubic-bezier(.2,1.35,.4,1); }
+        @keyframes taskCelebrate { 0% { transform:scale(1); box-shadow:0 0 0 rgba(106,247,196,0); } 45% { transform:scale(1.01); box-shadow:0 0 0 8px rgba(106,247,196,0.08); } 100% { transform:scale(1); box-shadow:0 0 0 rgba(106,247,196,0); } }
+        @keyframes checkBounce { 0% { transform:scale(1); } 35% { transform:scale(1.25); } 100% { transform:scale(1); } }
+        .beta-banner { display:flex; align-items:center; justify-content:center; gap:8px; padding:9px 18px; background:rgba(124,106,247,0.12); border-bottom:1px solid rgba(124,106,247,0.25); color:var(--accent); font-size:11px; text-align:center; }
         .demo-banner { display:flex; align-items:center; justify-content:center; gap:8px; padding:10px 18px; background:rgba(247,162,106,0.12); border-bottom:1px solid rgba(247,162,106,0.25); color:var(--accent2); font-size:11px; text-align:center; }
         .demo-note-card { background:rgba(247,162,106,0.1); border:1px solid rgba(247,162,106,0.24); color:var(--text); border-radius:12px; padding:14px 16px; margin-bottom:16px; line-height:1.6; }
         .ai-trigger { width:34px; height:34px; border-radius:50%; background:rgba(124,106,247,0.07); border:1px solid rgba(124,106,247,0.27); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background 0.2s, transform 0.2s ease, border-color 0.2s ease; }
@@ -2258,6 +2995,11 @@ export default function Markd() {
         .reset-btn { width:100%; padding:11px; border-radius:10px; border:1px solid rgba(247,106,106,0.3); background:rgba(247,106,106,0.07); color:var(--danger); font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; }
         .reset-confirm-box { background:var(--surface2); border:1px solid rgba(247,106,106,0.25); border-radius:12px; padding:14px; }
         .reset-confirm-text { font-size:12px; color:var(--text); line-height:1.5; }
+        @media (max-width: 767px) {
+          .planner-summary-grid, .summary-grid, .achievement-grid { grid-template-columns:1fr; }
+          .quick-add-grid { grid-template-columns:1fr; }
+          .next-task-card { align-items:flex-start; flex-direction:column; }
+        }
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after { animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; scroll-behavior:auto !important; }
           .page > * { opacity:1 !important; transform:none !important; }
@@ -2582,6 +3324,9 @@ export default function Markd() {
         <div className="top-bar">
           <div className="logo">Markd<span className="logo-dot"/></div>
           <div className="top-bar-right">
+            <button className={`revision-trigger ${revisionMode ? "active" : ""}`} onClick={() => setRevisionMode(mode => !mode)}>
+              {revisionMode ? "Revision" : "Focus"}
+            </button>
             <button className="ai-trigger" onClick={()=>setAiOpen(true)}><Icon d={icons.sparkle} size={18} color="var(--accent)"/></button>
             {teamsSyncing && <div className="sync-spinner"/>}
             <button className="avatar-btn" onClick={()=>{ setSettingsOpen(true); setSettingsTab("general"); }}>
@@ -2590,11 +3335,12 @@ export default function Markd() {
           </div>
         </div>
 
+        <div className="beta-banner">Markd is still in Beta!</div>
         {demoMode && <div className="demo-banner">Demo admin mode is active. Changes are temporary and reset every time you open the demo workspace.</div>}
 
         <div className="app-body">
           <nav className="sidebar">
-            {NAV_ITEMS.map(n=>(<button key={n.key} className={`sidebar-item ${page===n.key?"active":""}`} onClick={()=>setPage(n.key)}><Icon d={n.icon} size={18}/><span>{n.label}</span></button>))}
+            {visibleNavItems.map(n=>(<button key={n.key} className={`sidebar-item ${page===n.key?"active":""}`} onClick={()=>setPage(n.key)}><Icon d={n.icon} size={18}/><span>{n.label}</span></button>))}
           </nav>
           <div className="page-scroll">{pages[page]()}</div>
         </div>
@@ -2602,7 +3348,7 @@ export default function Markd() {
         <button className="fab" onClick={fabAction}><Icon d={icons.plus} size={26} color="white"/></button>
 
         <nav className="bottom-nav">
-          {NAV_ITEMS.map(n=>(<button key={n.key} className={`nav-item ${page===n.key?"active":""}`} onClick={()=>setPage(n.key)}><Icon d={n.icon} size={20}/><span>{n.label}</span></button>))}
+          {visibleNavItems.map(n=>(<button key={n.key} className={`nav-item ${page===n.key?"active":""}`} onClick={()=>setPage(n.key)}><Icon d={n.icon} size={20}/><span>{n.label}</span></button>))}
         </nav>
 
         {renderModal()}

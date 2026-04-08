@@ -426,6 +426,7 @@ const icons = {
   link: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6 M15 3h6v6 M10 14L21 3",
   chevron: "M9 18l6-6-6-6",
   sparkle: "M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z",
+  play: "M8 5v14l11-7z",
   send: "M22 2L11 13 M22 2l-7 20-4-9-9-4z",
   download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
   sync: "M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15",
@@ -454,6 +455,79 @@ const TYPE_LABELS = {
   subject: "Subject", task: "Task", deadline: "Deadline", exam: "Exam",
   paper: "Past Paper", goal: "Goal", portfolio: "Portfolio", activity: "Activity",
 };
+
+const PRESENTATION_STEPS = [
+  {
+    id: "planner",
+    page: "home",
+    selector: '[data-present="planner-panel"]',
+    title: "Smart daily planner",
+    body: "Markd builds a focus list from deadlines, exams, priorities, and time estimates so the student always knows what to work on first.",
+  },
+  {
+    id: "do-next",
+    page: "home",
+    selector: '[data-present="do-next"]',
+    title: "Do Next",
+    body: "This is the single best next action. It surfaces the highest-leverage task and lets you jump straight into it.",
+  },
+  {
+    id: "exam-countdown",
+    page: "home",
+    selector: '[data-present="exam-countdown"]',
+    title: "Exam countdowns",
+    body: "Upcoming exams are always visible with a live countdown so urgency is obvious at a glance.",
+  },
+  {
+    id: "subject-health",
+    page: "home",
+    selector: '[data-present="subject-health"]',
+    title: "Subject health",
+    body: "Each subject gets a health score based on marks, task completion, and how much deadline pressure is coming up soon.",
+  },
+  {
+    id: "quick-add",
+    page: "tasks",
+    selector: '[data-present="quick-add"]',
+    title: "Quick add",
+    body: "Tasks can be added instantly. Markd suggests the subject, urgency, and time estimate automatically.",
+  },
+  {
+    id: "priorities",
+    page: "tasks",
+    selector: '[data-present="priority-tasks"]',
+    title: "Priority engine",
+    body: "Tasks are ranked by urgency, exam pressure, age, and time required, so the list naturally surfaces what matters most.",
+  },
+  {
+    id: "subjects",
+    page: "subjects",
+    selector: '[data-present="subject-overview"]',
+    title: "Subject overview",
+    body: "Each subject card combines target grade, average mark, health, task progress, exam timing, and topic tracking in one place.",
+  },
+  {
+    id: "marks-trend",
+    page: "papers",
+    selector: '[data-present="marks-trend"]',
+    title: "Marks tracker",
+    body: "Past papers build a performance trend over time, including average percentages and projected grades.",
+  },
+  {
+    id: "goals",
+    page: "goals",
+    selector: '[data-present="goals-progress"]',
+    title: "Goal progress",
+    body: "Goals are grouped by horizon so students can balance short-term wins with longer-term academic targets.",
+  },
+  {
+    id: "ai-assistant",
+    page: "home",
+    selector: '[data-present="ai-assistant"]',
+    title: "AI study assistant",
+    body: "The built-in assistant can use the student’s actual workload, exams, and goals to suggest priorities and revision plans.",
+  },
+];
 
 const DEMO_ADMIN_EMAIL = "admin@demo.markd";
 const DEMO_ADMIN_PASSWORD = "markddemo";
@@ -1007,6 +1081,10 @@ export default function Markd() {
   const [highlightedTaskId, setHighlightedTaskId] = useState(null);
   const [completionBurstId, setCompletionBurstId] = useState(null);
   const [healthIntroOpen, setHealthIntroOpen] = useState(false);
+  const [presentationMode, setPresentationMode] = useState(false);
+  const [presentationStepIndex, setPresentationStepIndex] = useState(0);
+  const [presentationSpotlightRect, setPresentationSpotlightRect] = useState(null);
+  const activePresentationStep = presentationMode ? PRESENTATION_STEPS[presentationStepIndex] : null;
 
   const resetPersistedState = () => {
     const empty = createEmptyAppData();
@@ -1064,6 +1142,35 @@ export default function Markd() {
     calendarLastSync,
   });
 
+  const stopPresentationMode = () => {
+    setPresentationMode(false);
+    setPresentationSpotlightRect(null);
+  };
+
+  const startPresentationMode = () => {
+    setRevisionMode(false);
+    setModal(null);
+    setAiOpen(false);
+    setSettingsOpen(false);
+    setConfirmDialog(null);
+    setHealthIntroOpen(false);
+    setPage(PRESENTATION_STEPS[0].page);
+    setPresentationStepIndex(0);
+    setPresentationMode(true);
+  };
+
+  const goToNextPresentationStep = () => {
+    if (presentationStepIndex >= PRESENTATION_STEPS.length - 1) {
+      stopPresentationMode();
+      return;
+    }
+    setPresentationStepIndex(index => Math.min(index + 1, PRESENTATION_STEPS.length - 1));
+  };
+
+  const goToPreviousPresentationStep = () => {
+    setPresentationStepIndex(index => Math.max(index - 1, 0));
+  };
+
   useEffect(() => {
     if (demoMode) {
       applyPersistedState(createDemoAppData());
@@ -1090,6 +1197,98 @@ export default function Markd() {
     }
     setHealthIntroOpen(true);
   }, [cloudHydrating, currentUser, demoMode, healthIntroOpen, healthIntroSeen, loadedUserId, userId]);
+
+  useEffect(() => {
+    if (!presentationMode || !activePresentationStep) return;
+    if (page !== activePresentationStep.page) {
+      setPage(activePresentationStep.page);
+    }
+  }, [activePresentationStep, page, presentationMode]);
+
+  useEffect(() => {
+    if (!presentationMode || !activePresentationStep) return;
+
+    let rafId = 0;
+    let retryTimeoutId = 0;
+    let settleTimeoutId = 0;
+    let activeTarget = null;
+
+    const measureTarget = () => {
+      if (!activeTarget) return;
+      const rect = activeTarget.getBoundingClientRect();
+      const padding = 14;
+      const top = Math.max(10, rect.top - padding);
+      const left = Math.max(10, rect.left - padding);
+      const right = Math.min(window.innerWidth - 10, rect.right + padding);
+      const bottom = Math.min(window.innerHeight - 10, rect.bottom + padding);
+      setPresentationSpotlightRect({
+        top,
+        left,
+        width: Math.max(0, right - left),
+        height: Math.max(0, bottom - top),
+      });
+    };
+
+    const attachToTarget = () => {
+      const target = document.querySelector(activePresentationStep.selector);
+      if (!target) {
+        retryTimeoutId = window.setTimeout(() => {
+          rafId = window.requestAnimationFrame(attachToTarget);
+        }, 70);
+        return;
+      }
+
+      activeTarget = target;
+      activeTarget.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+      activeTarget.classList.add("presentation-target-active");
+      rafId = window.requestAnimationFrame(() => {
+        measureTarget();
+        settleTimeoutId = window.setTimeout(measureTarget, 280);
+      });
+    };
+
+    const syncPosition = () => {
+      if (!activeTarget) return;
+      measureTarget();
+    };
+
+    attachToTarget();
+    window.addEventListener("resize", syncPosition);
+    window.addEventListener("scroll", syncPosition, true);
+
+    return () => {
+      if (activeTarget) activeTarget.classList.remove("presentation-target-active");
+      window.cancelAnimationFrame(rafId);
+      window.clearTimeout(retryTimeoutId);
+      window.clearTimeout(settleTimeoutId);
+      window.removeEventListener("resize", syncPosition);
+      window.removeEventListener("scroll", syncPosition, true);
+    };
+  }, [activePresentationStep, page, presentationMode]);
+
+  useEffect(() => {
+    if (!presentationMode) return;
+
+    const handlePresentationKeys = (event) => {
+      if (["ArrowRight", "PageDown", "Enter", " ", "Spacebar"].includes(event.key)) {
+        event.preventDefault();
+        goToNextPresentationStep();
+        return;
+      }
+      if (["ArrowLeft", "PageUp", "Backspace"].includes(event.key)) {
+        event.preventDefault();
+        goToPreviousPresentationStep();
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        stopPresentationMode();
+      }
+    };
+
+    window.addEventListener("keydown", handlePresentationKeys);
+    return () => window.removeEventListener("keydown", handlePresentationKeys);
+  }, [presentationMode, presentationStepIndex]);
 
   useEffect(() => {
     if (revisionMode && ["activities", "portfolio"].includes(page)) {
@@ -1270,6 +1469,7 @@ export default function Markd() {
   ]);
   // ─── Auth ───
   const handleAuth = ({ authUser: nextAuthUser, profile }) => {
+    stopPresentationMode();
     setDemoMode(false);
     setAuthUser(nextAuthUser);
     setCurrentUser(buildSessionUser(nextAuthUser, profile));
@@ -1277,6 +1477,7 @@ export default function Markd() {
   };
 
   const handleDemoAuth = () => {
+    stopPresentationMode();
     setDemoMode(true);
     setAuthUser(null);
     setCurrentUser(DEMO_ADMIN_PROFILE);
@@ -1293,6 +1494,7 @@ export default function Markd() {
     if (!demoMode && supabase) {
       await supabase.auth.signOut();
     }
+    stopPresentationMode();
     setDemoMode(false);
     setAuthUser(null);
     setCurrentUser(null);
@@ -1874,7 +2076,7 @@ export default function Markd() {
     );
     const previewEstimate = estimateFromText(quickTaskText);
     return (
-      <div className="quick-add-card">
+      <div className="quick-add-card" data-present="quick-add">
         <div className="quick-add-header">
           <div>
             <div className="quick-add-title">Quick add</div>
@@ -1914,7 +2116,7 @@ export default function Markd() {
     );
   };
   const renderPlannerPanel = () => (
-    <div className="planner-card">
+    <div className="planner-card" data-present="planner-panel">
       <div className="planner-head">
         <div>
           <div className="planner-eyebrow">Smart daily planner</div>
@@ -1940,7 +2142,7 @@ export default function Markd() {
         </div>
       </div>
       {suggestedTask ? (
-        <div className="next-task-card">
+        <div className="next-task-card" data-present="do-next">
           <div style={{flex:1}}>
             <div className="next-task-label">Do next</div>
             <div className="next-task-name">{suggestedTask.text}</div>
@@ -2047,7 +2249,7 @@ export default function Markd() {
             </>
           )}
           {nextExam && (
-            <div className="next-exam-card" onClick={()=>setPage("exams")}>
+            <div className="next-exam-card" data-present="exam-countdown" onClick={()=>setPage("exams")}>
               <div className="next-exam-label">Next Exam</div>
               <div className="next-exam-name">{nextExam.name}</div>
               <div className="next-exam-date">{fmtDate(nextExam.date)}</div>
@@ -2061,7 +2263,7 @@ export default function Markd() {
               <button className="link-btn" onClick={()=>setPage("subjects")}>Open subjects <Icon d={icons.chevron} size={14}/></button>
             </div>
           </div>
-          <div className="health-grid">
+          <div className="health-grid" data-present="subject-health">
             {subjects.map(subject => {
               const health = getSubjectHealth(subject.id);
               const nextSubjectExam = getNextExamForSubject(subject.id);
@@ -2100,13 +2302,13 @@ export default function Markd() {
     <div className="page">
       <h2 className="page-title">Subjects</h2>
       {subjects.length === 0 ? <EmptyState icon={icons.book} message="No subjects yet. Tap + to add your first subject." action={()=>openModal("addSubject")} actionLabel="Add Subject"/> :
-      subjects.map(s => {
+      subjects.map((s, index) => {
         const avg=avgMark(s.id); const dlCount=subjectDeadlineCount(s.id); const tp=subjectTaskProgress(s.id);
         const health = getSubjectHealth(s.id);
         const nextSubjectExam = getNextExamForSubject(s.id);
         const topicProgress = getTopicProgress(s.id);
         return (
-          <div key={s.id} className="subject-card" style={{borderLeft:`4px solid ${s.colour}`}}>
+          <div key={s.id} className="subject-card" data-present={index === 0 ? "subject-overview" : undefined} style={{borderLeft:`4px solid ${s.colour}`}}>
             <div className="subject-card-header"><div><div className="subject-card-name">{s.name}</div><div className="subject-card-board">{s.board}</div></div><DeleteBtn onClick={()=>deleteSubject(s.id)}/></div>
             <div className="subject-card-stats">
               <div className="subject-stat"><span className="subject-stat-label">Target</span><span className="subject-stat-val" style={{color:s.colour}}>{s.target}</span></div>
@@ -2139,6 +2341,7 @@ export default function Markd() {
       if (a.done !== b.done) return a.done ? 1 : -1;
       return getTaskScore(b) - getTaskScore(a);
     });
+    const topTaskId = sortedTasks.find(task => !task.done)?.id || sortedTasks[0]?.id || null;
     const grouped = groupBySubject(sortedTasks);
     return (
       <div className="page">
@@ -2150,7 +2353,7 @@ export default function Markd() {
           <div key={sId} className="group-section">
             <div className="group-label" style={{color:subColour(sId)}}>{subName(sId)}</div>
             {items.map(t => (
-              <div key={t.id} className={`list-item task-list-item ${highlightedTaskId === t.id ? "highlighted" : ""} ${completionBurstId === t.id ? "completed-burst" : ""}`} style={{borderLeft:`3px solid ${subColour(t.subjectId)}`}}>
+              <div key={t.id} data-present={t.id === topTaskId ? "priority-tasks" : undefined} className={`list-item task-list-item ${highlightedTaskId === t.id ? "highlighted" : ""} ${completionBurstId === t.id ? "completed-burst" : ""}`} style={{borderLeft:`3px solid ${subColour(t.subjectId)}`}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
                   <span className={`task-check ${t.done?"checked":""} ${completionBurstId === t.id ? "burst" : ""}`} style={{borderColor:subColour(t.subjectId),background:t.done?subColour(t.subjectId):"transparent"}} onClick={()=>toggleTaskDone(t.id)}>{t.done?"✓":""}</span>
                   <div style={{flex:1}}>
@@ -2218,7 +2421,7 @@ export default function Markd() {
         </div>
         {paperTab === "my" ? (
           papers.length === 0 ? <EmptyState icon={icons.file} message="No papers logged yet. Tap + to add one." action={()=>openModal("addPaper")} actionLabel="Add Paper"/> :
-          Object.entries(grouped).map(([sId,items]) => {
+          Object.entries(grouped).map(([sId,items], index) => {
             const sAvg = Math.round(items.reduce((a,p)=>a+(p.scored/p.total)*100,0)/items.length);
             const subject = sub(sId);
             const projected = getProjectedGrade(subject);
@@ -2229,7 +2432,7 @@ export default function Markd() {
                   <span className="paper-summary-pill">Trend {items.length >= 2 ? `${Math.round((items[items.length - 1].scored / items[items.length - 1].total) * 100) - Math.round((items[0].scored / items[0].total) * 100) >= 0 ? "+" : ""}${Math.round((items[items.length - 1].scored / items[items.length - 1].total) * 100) - Math.round((items[0].scored / items[0].total) * 100)}%` : "Building"}</span>
                   {projected && <span className="paper-summary-pill">Projected {projected}</span>}
                 </div>
-                <div className="trend-bars">
+                <div className="trend-bars" data-present={index === 0 ? "marks-trend" : undefined}>
                   {items.map(paper => {
                     const pct = Math.round((paper.scored / paper.total) * 100);
                     return <div key={paper.id} className="trend-bar" style={{height:`${Math.max(18, pct)}%`, background: pct>=70?"var(--accent3)":pct>=50?"var(--accent2)":"var(--danger)"}} title={`${paper.title}: ${pct}%`} />;
@@ -2276,7 +2479,7 @@ export default function Markd() {
               <DeleteBtn onClick={()=>deleteGoal(g.id)}/>
             </div>
           ))}
-          <div className="goals-overview"><div className="goals-overview-title">Progress Overview</div>{HORIZONS.map(h=><div key={h} className="goals-overview-row"><span className="goals-overview-label">{h}</span><div className="progress-bar" style={{flex:1}}><div className="progress-fill" style={{width:`${horizonProgress(h)}%`,background:"var(--accent)"}}/></div><span className="goals-overview-pct">{horizonProgress(h)}%</span></div>)}</div>
+          <div className="goals-overview" data-present="goals-progress"><div className="goals-overview-title">Progress Overview</div>{HORIZONS.map(h=><div key={h} className="goals-overview-row"><span className="goals-overview-label">{h}</span><div className="progress-bar" style={{flex:1}}><div className="progress-fill" style={{width:`${horizonProgress(h)}%`,background:"var(--accent)"}}/></div><span className="goals-overview-pct">{horizonProgress(h)}%</span></div>)}</div>
         </>) : (<>
           {marksVsTarget.length===0?<div className="empty-state">Log some past papers to see your marks vs targets.</div>:marksVsTarget.map(s=>(
             <div key={s.id} className="mvt-card"><div className="mvt-name">{s.name}</div><div className="mvt-bars"><div className="mvt-bar-row"><span className="mvt-bar-label">Actual</span><div className="progress-bar" style={{flex:1}}><div className="progress-fill" style={{width:`${s.avg}%`,background:s.avg>=s.targetPct?"var(--accent3)":"var(--danger)"}}/></div><span className="mvt-bar-val">{s.avg}%</span></div><div className="mvt-bar-row"><span className="mvt-bar-label">Target</span><div className="progress-bar" style={{flex:1}}><div className="progress-fill" style={{width:`${s.targetPct}%`,background:s.colour}}/></div><span className="mvt-bar-val">{s.targetPct}%</span></div></div><div className="mvt-gap" style={{color:s.gap>=0?"var(--accent3)":"var(--danger)"}}>{s.gap>=0?"+":""}{s.gap}%</div></div>
@@ -2389,6 +2592,51 @@ export default function Markd() {
             A higher score means you are on top of that subject. Close exams or deadlines pull the score down, and new subjects start from a balanced baseline instead of zero.
           </div>
           <button className="modal-save" onClick={dismissHealthIntro}>Got it</button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPresentationOverlay = () => {
+    if (!presentationMode || !activePresentationStep) return null;
+
+    const rect = presentationSpotlightRect;
+    const currentStep = presentationStepIndex + 1;
+    const panelStyle = rect && typeof window !== "undefined" && rect.top > window.innerHeight * 0.48
+      ? { top: 22, bottom: "auto" }
+      : { bottom: 22, top: "auto" };
+
+    return (
+      <div className="presentation-overlay" aria-live="polite">
+        {rect ? (
+          <>
+            <div className="presentation-blur-pane" style={{ top: 0, left: 0, width: "100%", height: rect.top }} />
+            <div className="presentation-blur-pane" style={{ top: rect.top, left: 0, width: rect.left, height: rect.height }} />
+            <div className="presentation-blur-pane" style={{ top: rect.top, left: rect.left + rect.width, right: 0, height: rect.height }} />
+            <div className="presentation-blur-pane" style={{ top: rect.top + rect.height, left: 0, width: "100%", bottom: 0 }} />
+            <div className="presentation-spotlight" style={{ top: rect.top, left: rect.left, width: rect.width, height: rect.height }} />
+          </>
+        ) : (
+          <div className="presentation-blur-pane" style={{ inset: 0 }} />
+        )}
+
+        <div className="presentation-panel" style={panelStyle}>
+          <div className="presentation-panel-top">
+            <span className="presentation-step-pill">Feature {currentStep}/{PRESENTATION_STEPS.length}</span>
+            <button className="presentation-close" onClick={stopPresentationMode}>
+              <Icon d={icons.x} size={16} color="var(--muted)" />
+            </button>
+          </div>
+          <div className="presentation-title">{activePresentationStep.title}</div>
+          <div className="presentation-copy">{activePresentationStep.body}</div>
+          <div className="presentation-hint">Press your clicker’s next button, right arrow, space, or enter to move forward.</div>
+          <div className="presentation-actions">
+            <button className="presentation-btn secondary" onClick={goToPreviousPresentationStep} disabled={presentationStepIndex === 0}>Back</button>
+            <button className="presentation-btn secondary" onClick={stopPresentationMode}>End</button>
+            <button className="presentation-btn primary" onClick={goToNextPresentationStep}>
+              {presentationStepIndex === PRESENTATION_STEPS.length - 1 ? "Finish" : "Next"}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -2892,9 +3140,29 @@ export default function Markd() {
         .swatch { width:30px; height:30px; border-radius:50%; border:3px solid transparent; cursor:pointer; transition:border-color 0.15s,transform 0.15s; }
         .swatch.active { border-color:var(--text); transform:scale(1.15); }
         .top-bar-right { display:flex; align-items:center; gap:10px; }
+        .present-trigger { display:flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; border:1px solid rgba(247,162,106,0.24); background:rgba(247,162,106,0.12); color:var(--accent2); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; transition:transform 0.2s ease, background 0.2s ease, border-color 0.2s ease; }
+        .present-trigger.active { background:var(--accent2); color:#111118; border-color:var(--accent2); }
+        .present-trigger:hover { transform:translateY(-2px); }
         .revision-trigger { padding:8px 12px; border-radius:999px; border:1px solid rgba(124,106,247,0.24); background:rgba(124,106,247,0.08); color:var(--accent); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; transition:transform 0.2s ease, background 0.2s ease, border-color 0.2s ease; }
         .revision-trigger.active { background:var(--accent); color:white; border-color:var(--accent); }
         .revision-trigger:hover { transform:translateY(-2px); }
+        .presentation-target-active { position:relative; z-index:355 !important; }
+        .presentation-overlay { position:fixed; inset:0; z-index:340; pointer-events:none; }
+        .presentation-blur-pane { position:fixed; background:rgba(7,7,14,0.4); backdrop-filter:blur(16px) saturate(0.82); -webkit-backdrop-filter:blur(16px) saturate(0.82); pointer-events:auto; }
+        .presentation-spotlight { position:fixed; border-radius:24px; border:1px solid rgba(255,255,255,0.16); box-shadow:0 0 0 2px rgba(124,106,247,0.48), 0 18px 38px rgba(0,0,0,0.35); pointer-events:none; }
+        .presentation-panel { position:fixed; left:50%; transform:translateX(-50%); width:min(440px, calc(100vw - 28px)); background:rgba(10,10,18,0.88); border:1px solid rgba(255,255,255,0.12); border-radius:24px; padding:18px 18px 16px; backdrop-filter:blur(24px) saturate(1.4); -webkit-backdrop-filter:blur(24px) saturate(1.4); box-shadow:0 24px 52px rgba(0,0,0,0.38); pointer-events:auto; }
+        .presentation-panel-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+        .presentation-step-pill { display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px; background:rgba(124,106,247,0.14); color:var(--accent); font-size:10px; text-transform:uppercase; letter-spacing:1px; }
+        .presentation-close { width:32px; height:32px; border-radius:50%; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.04); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+        .presentation-title { font-family:'Syne',sans-serif; font-size:22px; font-weight:700; line-height:1.15; margin-bottom:8px; }
+        .presentation-copy { color:var(--text); font-size:12px; line-height:1.65; }
+        .presentation-hint { color:var(--muted); font-size:10px; line-height:1.5; margin-top:10px; }
+        .presentation-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+        .presentation-btn { border-radius:12px; padding:10px 14px; font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; transition:transform 0.18s ease, opacity 0.18s ease, border-color 0.18s ease; }
+        .presentation-btn:hover:not(:disabled) { transform:translateY(-2px); }
+        .presentation-btn:disabled { opacity:0.45; cursor:default; }
+        .presentation-btn.secondary { border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:var(--text); }
+        .presentation-btn.primary { border:none; background:var(--accent); color:white; font-weight:700; }
         .planner-card, .quick-add-card, .summary-card, .insight-card, .achievement-card, .health-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; transition:transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease; }
         .planner-card:hover, .quick-add-card:hover, .summary-card:hover, .insight-card:hover, .achievement-card:hover, .health-card:hover { transform:translateY(-4px); border-color:rgba(124,106,247,0.26); box-shadow:0 16px 28px rgba(0,0,0,0.16); }
         .planner-card { padding:18px; margin-bottom:16px; }
@@ -3389,14 +3657,20 @@ export default function Markd() {
         }
       `}</style>
 
-      <div className={`markd-app ${theme==="light"?"light-theme":""}`}>
+      <div className={`markd-app ${theme==="light"?"light-theme":""} ${presentationMode ? "presentation-active" : ""}`}>
         <div className="top-bar">
           <div className="logo">Markd<span className="logo-dot"/></div>
           <div className="top-bar-right">
+            {demoMode && (
+              <button className={`present-trigger ${presentationMode ? "active" : ""}`} onClick={presentationMode ? stopPresentationMode : startPresentationMode}>
+                <Icon d={presentationMode ? icons.x : icons.play} size={14} color="currentColor" />
+                <span>{presentationMode ? "Stop" : "Play"}</span>
+              </button>
+            )}
             <button className={`revision-trigger ${revisionMode ? "active" : ""}`} onClick={() => setRevisionMode(mode => !mode)}>
               {revisionMode ? "Revision" : "Focus"}
             </button>
-            <button className="ai-trigger" onClick={()=>setAiOpen(true)}><Icon d={icons.sparkle} size={18} color="var(--accent)"/></button>
+            <button className="ai-trigger" data-present="ai-assistant" onClick={()=>setAiOpen(true)}><Icon d={icons.sparkle} size={18} color="var(--accent)"/></button>
             {teamsSyncing && <div className="sync-spinner"/>}
             <button className="avatar-btn" onClick={()=>{ setSettingsOpen(true); setSettingsTab("general"); }}>
               <div className="avatar">{teamsConnected&&<div className="teams-badge"/>}{userInitial}</div>
@@ -3422,6 +3696,7 @@ export default function Markd() {
 
         {renderModal()}
         {renderHealthIntroDialog()}
+        {renderPresentationOverlay()}
         {renderAiPanel()}
         {renderSettingsPanel()}
         {renderConfirmDialog()}

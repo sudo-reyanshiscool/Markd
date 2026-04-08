@@ -4210,7 +4210,7 @@ export default function Markd() {
           0%, 100% { box-shadow: 0 4px 20px rgba(124,106,247,0.18); }
           50%       { box-shadow: 0 8px 32px rgba(124,106,247,0.38); }
         }
-        .next-exam-card { animation: examGlow 3s ease-in-out infinite; }
+        .next-exam-card { opacity:1; animation: examGlow 3s ease-in-out infinite; }
 
         /* Card shimmer sweep */
         @keyframes glassSheen {

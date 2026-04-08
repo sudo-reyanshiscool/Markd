@@ -663,8 +663,8 @@ function AuthScreen({ onAuth, onDemoAuth, cloudError = "" }) {
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
         * { margin:0; padding:0; box-sizing:border-box; }
         html, body { height:100%; }
-        .auth-root { min-height:100vh; min-height:100dvh; background:#0a0a0f; color:#e8e8f0; font-family:'DM Mono',monospace; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; }
-        .auth-card { width:100%; max-width:400px; background:#111118; border:1px solid #2a2a38; border-radius:20px; padding:32px 28px; display:flex; flex-direction:column; gap:20px; }
+        .auth-root { min-height:100vh; min-height:100dvh; background:#080810; background-image:radial-gradient(circle at 18% 18%, rgba(124,106,247,0.22) 0%, transparent 52%), radial-gradient(circle at 82% 82%, rgba(106,247,196,0.16) 0%, transparent 50%); color:#e8e8f0; font-family:'DM Mono',monospace; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; }
+        .auth-card { width:100%; max-width:400px; background:rgba(255,255,255,0.07); backdrop-filter:blur(28px) saturate(1.5); -webkit-backdrop-filter:blur(28px) saturate(1.5); border:1px solid rgba(255,255,255,0.12); border-radius:20px; padding:32px 28px; display:flex; flex-direction:column; gap:20px; }
         .auth-logo { font-family:'Syne',sans-serif; font-weight:800; font-size:28px; color:#e8e8f0; text-align:center; }
         .auth-logo.tap-target { cursor:pointer; user-select:none; }
         .auth-logo-dot { display:inline-block; width:9px; height:9px; background:#7c6af7; border-radius:50%; margin-left:3px; vertical-align:middle; position:relative; top:-2px; box-shadow:0 0 12px #7c6af7; }
@@ -673,7 +673,7 @@ function AuthScreen({ onAuth, onDemoAuth, cloudError = "" }) {
         .auth-title { font-family:'Syne',sans-serif; font-weight:700; font-size:20px; text-align:center; color:#e8e8f0; }
         .auth-sub { font-size:12px; color:#6b6b80; text-align:center; line-height:1.5; }
         .auth-input-wrap { position:relative; }
-        .auth-input { width:100%; padding:12px 14px; border-radius:10px; border:1px solid #2a2a38; background:#1a1a24; color:#e8e8f0; font-family:'DM Mono',monospace; font-size:13px; outline:none; transition:border-color 0.2s; }
+        .auth-input { width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.11); background:rgba(255,255,255,0.07); color:#e8e8f0; font-family:'DM Mono',monospace; font-size:13px; outline:none; transition:border-color 0.2s, box-shadow 0.2s; }
         .auth-input:focus { border-color:#7c6af7; }
         .auth-input::placeholder { color:#6b6b80; }
         .auth-input.has-toggle { padding-right:44px; }
@@ -794,8 +794,8 @@ function AppBootScreen({ message }) {
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
         * { margin:0; padding:0; box-sizing:border-box; }
         html, body { height:100%; }
-        .auth-root { min-height:100vh; min-height:100dvh; background:#0a0a0f; color:#e8e8f0; font-family:'DM Mono',monospace; display:flex; align-items:center; justify-content:center; padding:24px; }
-        .boot-card { width:100%; max-width:400px; background:#111118; border:1px solid #2a2a38; border-radius:20px; padding:32px 28px; display:flex; flex-direction:column; gap:16px; align-items:center; text-align:center; }
+        .auth-root { min-height:100vh; min-height:100dvh; background:#080810; background-image:radial-gradient(circle at 18% 18%, rgba(124,106,247,0.22) 0%, transparent 52%), radial-gradient(circle at 82% 82%, rgba(106,247,196,0.16) 0%, transparent 50%); color:#e8e8f0; font-family:'DM Mono',monospace; display:flex; align-items:center; justify-content:center; padding:24px; }
+        .boot-card { width:100%; max-width:400px; background:rgba(255,255,255,0.07); backdrop-filter:blur(28px) saturate(1.5); -webkit-backdrop-filter:blur(28px) saturate(1.5); border:1px solid rgba(255,255,255,0.12); border-radius:20px; padding:32px 28px; display:flex; flex-direction:column; gap:16px; align-items:center; text-align:center; }
         .boot-logo { font-family:'Syne',sans-serif; font-weight:800; font-size:28px; color:#e8e8f0; }
         .boot-logo-dot { display:inline-block; width:9px; height:9px; background:#7c6af7; border-radius:50%; margin-left:3px; vertical-align:middle; position:relative; top:-2px; box-shadow:0 0 12px #7c6af7; }
         .boot-spinner { width:28px; height:28px; border-radius:50%; border:3px solid rgba(124,106,247,0.2); border-top-color:#7c6af7; animation:bootSpin 0.9s linear infinite; }
@@ -2331,6 +2331,60 @@ export default function Markd() {
 
         /* Light theme modal overlay */
         .markd-app.light-theme .field-label { color:var(--muted); }
+
+        /* ── Glassmorphism Design ── */
+        :root {
+          --surface: rgba(255,255,255,0.055);
+          --surface2: rgba(255,255,255,0.038);
+          --border: rgba(255,255,255,0.11);
+        }
+        /* Second ambient background blob */
+        .markd-app::after { content:""; position:fixed; bottom:-12%; right:-6%; width:44vw; height:44vw; min-width:240px; min-height:240px; max-width:480px; max-height:480px; border-radius:50%; background:radial-gradient(circle, rgba(106,247,196,0.2) 0%, rgba(247,162,106,0.1) 38%, transparent 68%); filter:blur(22px); pointer-events:none; z-index:0; animation:ambientFloat 22s ease-in-out infinite reverse; }
+        /* Glass surface base — applied to all card-like elements */
+        .subject-card, .list-item, .exam-card, .paper-card, .portfolio-card,
+        .activity-card, .stat-card, .next-exam-card, .mvt-card, .goals-overview,
+        .onboarding-card, .link-card, .exam-action-card, .calendar-sync-card,
+        .browse-item, .deleted-item {
+          backdrop-filter: blur(14px) saturate(1.5);
+          -webkit-backdrop-filter: blur(14px) saturate(1.5);
+        }
+        /* Glass nav bars */
+        .top-bar { background:rgba(8,8,16,0.58); backdrop-filter:blur(28px) saturate(1.7); -webkit-backdrop-filter:blur(28px) saturate(1.7); border-bottom:1px solid rgba(255,255,255,0.08); }
+        .bottom-nav { background:rgba(10,10,18,0.7); backdrop-filter:blur(28px) saturate(1.7); -webkit-backdrop-filter:blur(28px) saturate(1.7); border-top:1px solid rgba(255,255,255,0.08); }
+        .sidebar { background:rgba(10,10,18,0.55); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-right:1px solid rgba(255,255,255,0.07); }
+        /* Glass modals and panels */
+        .modal-sheet { background:rgba(10,10,20,0.8); backdrop-filter:blur(36px) saturate(1.6); -webkit-backdrop-filter:blur(36px) saturate(1.6); border:1px solid rgba(255,255,255,0.1); border-bottom:none; }
+        .ai-sheet { background:rgba(10,10,20,0.85); backdrop-filter:blur(36px) saturate(1.6); -webkit-backdrop-filter:blur(36px) saturate(1.6); border:1px solid rgba(255,255,255,0.1); border-bottom:none; }
+        .settings-sheet { background:rgba(10,10,20,0.85); backdrop-filter:blur(36px) saturate(1.6); -webkit-backdrop-filter:blur(36px) saturate(1.6); border:1px solid rgba(255,255,255,0.1); border-bottom:none; }
+        .confirm-dialog { background:rgba(10,10,20,0.88); backdrop-filter:blur(36px); -webkit-backdrop-filter:blur(36px); border:1px solid rgba(255,255,255,0.1); }
+        /* Glass inputs */
+        .modal-input { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); }
+        .modal-input:focus { background:rgba(255,255,255,0.09); border-color:rgba(124,106,247,0.55); box-shadow:0 0 0 3px rgba(124,106,247,0.12); transform:none; }
+        /* Glass AI bubble */
+        .ai-bubble.assistant { background:rgba(255,255,255,0.06); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.1); }
+        /* Light theme glass overrides */
+        .markd-app.light-theme { --surface:rgba(255,255,255,0.65); --surface2:rgba(255,255,255,0.45); --border:rgba(100,100,160,0.12); }
+        .markd-app.light-theme .subject-card,
+        .markd-app.light-theme .list-item,
+        .markd-app.light-theme .exam-card,
+        .markd-app.light-theme .paper-card,
+        .markd-app.light-theme .portfolio-card,
+        .markd-app.light-theme .activity-card,
+        .markd-app.light-theme .stat-card,
+        .markd-app.light-theme .next-exam-card,
+        .markd-app.light-theme .mvt-card,
+        .markd-app.light-theme .goals-overview,
+        .markd-app.light-theme .onboarding-card,
+        .markd-app.light-theme .link-card,
+        .markd-app.light-theme .exam-action-card { background:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.8); }
+        .markd-app.light-theme .top-bar { background:rgba(250,250,254,0.7); backdrop-filter:blur(28px) saturate(1.7); -webkit-backdrop-filter:blur(28px) saturate(1.7); border-bottom:1px solid rgba(0,0,0,0.06); }
+        .markd-app.light-theme .bottom-nav { background:rgba(255,255,255,0.78); backdrop-filter:blur(28px) saturate(1.7); -webkit-backdrop-filter:blur(28px) saturate(1.7); border-top:1px solid rgba(0,0,0,0.06); }
+        .markd-app.light-theme .modal-sheet,
+        .markd-app.light-theme .ai-sheet,
+        .markd-app.light-theme .settings-sheet { background:rgba(250,250,254,0.86); backdrop-filter:blur(36px) saturate(1.5); -webkit-backdrop-filter:blur(36px) saturate(1.5); border:1px solid rgba(255,255,255,0.9); border-bottom:none; }
+        .markd-app.light-theme .modal-input { background:rgba(255,255,255,0.65); border:1px solid rgba(0,0,0,0.1); }
+        .markd-app.light-theme .confirm-dialog { background:rgba(250,250,254,0.9); backdrop-filter:blur(36px); -webkit-backdrop-filter:blur(36px); border:1px solid rgba(255,255,255,0.9); }
+        .markd-app.light-theme .ai-bubble.assistant { background:rgba(255,255,255,0.7); backdrop-filter:blur(10px); border:1px solid rgba(0,0,0,0.07); }
       `}</style>
 
       <div className={`markd-app ${theme==="light"?"light-theme":""}`}>

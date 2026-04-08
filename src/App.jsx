@@ -2385,6 +2385,50 @@ export default function Markd() {
         .markd-app.light-theme .modal-input { background:rgba(255,255,255,0.65); border:1px solid rgba(0,0,0,0.1); }
         .markd-app.light-theme .confirm-dialog { background:rgba(250,250,254,0.9); backdrop-filter:blur(36px); -webkit-backdrop-filter:blur(36px); border:1px solid rgba(255,255,255,0.9); }
         .markd-app.light-theme .ai-bubble.assistant { background:rgba(255,255,255,0.7); backdrop-filter:blur(10px); border:1px solid rgba(0,0,0,0.07); }
+
+        /* ── Glass fix: vivid gradients directly on .markd-app (pseudo-elements
+           are unreliable as backdrop-filter sources on some engines) ── */
+        .markd-app {
+          background-image:
+            radial-gradient(ellipse at 12% 18%, rgba(124,106,247,0.38) 0%, transparent 50%),
+            radial-gradient(ellipse at 88% 82%, rgba(106,247,196,0.26) 0%, transparent 50%);
+        }
+        /* Explicit glass backgrounds on all card-like surfaces */
+        .subject-card, .list-item, .exam-card, .paper-card, .portfolio-card,
+        .activity-card, .stat-card, .next-exam-card, .mvt-card, .goals-overview,
+        .onboarding-card, .link-card, .exam-action-card, .calendar-sync-card,
+        .browse-item, .deleted-item, .subject-mini, .reset-confirm-box {
+          background: rgba(255,255,255,0.08);
+          border: 1px solid rgba(255,255,255,0.14);
+          backdrop-filter: blur(18px) saturate(1.6);
+          -webkit-backdrop-filter: blur(18px) saturate(1.6);
+        }
+        /* Surface2 elements */
+        .browse-item, .deleted-item, .ai-bubble.assistant { background: rgba(255,255,255,0.06); }
+        .modal-input, .tab-btn, .horizon-btn { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); }
+        /* Light theme: gradient + glass */
+        .markd-app.light-theme {
+          background-image:
+            radial-gradient(ellipse at 12% 18%, rgba(107,84,245,0.16) 0%, transparent 52%),
+            radial-gradient(ellipse at 88% 82%, rgba(43,189,138,0.12) 0%, transparent 52%);
+        }
+        .markd-app.light-theme .subject-card,
+        .markd-app.light-theme .list-item,
+        .markd-app.light-theme .exam-card,
+        .markd-app.light-theme .paper-card,
+        .markd-app.light-theme .portfolio-card,
+        .markd-app.light-theme .activity-card,
+        .markd-app.light-theme .stat-card,
+        .markd-app.light-theme .next-exam-card,
+        .markd-app.light-theme .mvt-card,
+        .markd-app.light-theme .goals-overview,
+        .markd-app.light-theme .onboarding-card,
+        .markd-app.light-theme .link-card,
+        .markd-app.light-theme .exam-action-card,
+        .markd-app.light-theme .subject-mini { background: rgba(255,255,255,0.62); border: 1px solid rgba(255,255,255,0.82); }
+        .markd-app.light-theme .modal-input,
+        .markd-app.light-theme .tab-btn,
+        .markd-app.light-theme .horizon-btn { background: rgba(255,255,255,0.65); border: 1px solid rgba(0,0,0,0.09); }
       `}</style>
 
       <div className={`markd-app ${theme==="light"?"light-theme":""}`}>

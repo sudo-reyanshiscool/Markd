@@ -2386,12 +2386,22 @@ export default function Markd() {
         .markd-app.light-theme .confirm-dialog { background:rgba(250,250,254,0.9); backdrop-filter:blur(36px); -webkit-backdrop-filter:blur(36px); border:1px solid rgba(255,255,255,0.9); }
         .markd-app.light-theme .ai-bubble.assistant { background:rgba(255,255,255,0.7); backdrop-filter:blur(10px); border:1px solid rgba(0,0,0,0.07); }
 
-        /* ── Glass fix: vivid gradients directly on .markd-app (pseudo-elements
-           are unreliable as backdrop-filter sources on some engines) ── */
+        /* ── Animated background blobs via CSS @property ── */
+        @property --bpx { syntax: '<percentage>'; initial-value: 12%; inherits: false; }
+        @property --bpy { syntax: '<percentage>'; initial-value: 18%; inherits: false; }
+        @property --btx { syntax: '<percentage>'; initial-value: 88%; inherits: false; }
+        @property --bty { syntax: '<percentage>'; initial-value: 82%; inherits: false; }
+        @keyframes blobDrift {
+          0%,100% { --bpx:12%; --bpy:18%; --btx:88%; --bty:82%; }
+          25%     { --bpx:20%; --bpy:28%; --btx:80%; --bty:72%; }
+          50%     { --bpx:24%; --bpy:10%; --btx:74%; --bty:88%; }
+          75%     { --bpx:6%;  --bpy:22%; --btx:86%; --bty:76%; }
+        }
         .markd-app {
           background-image:
-            radial-gradient(ellipse at 12% 18%, rgba(124,106,247,0.38) 0%, transparent 50%),
-            radial-gradient(ellipse at 88% 82%, rgba(106,247,196,0.26) 0%, transparent 50%);
+            radial-gradient(ellipse at var(--bpx) var(--bpy), rgba(124,106,247,0.38) 0%, transparent 50%),
+            radial-gradient(ellipse at var(--btx) var(--bty), rgba(106,247,196,0.26) 0%, transparent 50%);
+          animation: blobDrift 18s ease-in-out infinite;
         }
         /* Explicit glass backgrounds on all card-like surfaces */
         .subject-card, .list-item, .exam-card, .paper-card, .portfolio-card,
@@ -2409,8 +2419,8 @@ export default function Markd() {
         /* Light theme: gradient + glass */
         .markd-app.light-theme {
           background-image:
-            radial-gradient(ellipse at 12% 18%, rgba(107,84,245,0.16) 0%, transparent 52%),
-            radial-gradient(ellipse at 88% 82%, rgba(43,189,138,0.12) 0%, transparent 52%);
+            radial-gradient(ellipse at var(--bpx) var(--bpy), rgba(107,84,245,0.16) 0%, transparent 52%),
+            radial-gradient(ellipse at var(--btx) var(--bty), rgba(43,189,138,0.12) 0%, transparent 52%);
         }
         .markd-app.light-theme .subject-card,
         .markd-app.light-theme .list-item,

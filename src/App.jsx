@@ -4299,10 +4299,6 @@ export default function Markd() {
         .portfolio-card:nth-child(2n)::after { animation-delay: 1.8s; }
 
         /* Richer surface motion across the planner and homescreen */
-        @keyframes surfaceFloat {
-          0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-          50% { transform: translate3d(0, -4px, 0) scale(1.01); }
-        }
         @keyframes orbPulse {
           0%, 100% { opacity: 0.28; transform: scale(1); }
           50% { opacity: 0.42; transform: scale(1.14); }
@@ -4397,20 +4393,8 @@ export default function Markd() {
         .planner-card,
         .insight-card {
           opacity: 1;
-          animation:
-            sectionReveal 0.58s cubic-bezier(.21,1,.29,1) both,
-            surfaceFloat 7.2s ease-in-out 0.58s infinite;
+          animation: sectionReveal 0.58s cubic-bezier(.21,1,.29,1) both;
         }
-        .summary-card,
-        .next-task-card {
-          animation: surfaceFloat 7.2s ease-in-out infinite;
-        }
-        .planner-card { animation-delay: 0s, 0.78s; }
-        .summary-card:nth-child(1) { animation-delay: 0.4s; }
-        .summary-card:nth-child(2) { animation-delay: 0.9s; }
-        .summary-card:nth-child(3) { animation-delay: 1.4s; }
-        .insight-card { animation-delay: 0s, 1.02s; }
-        .next-task-card { animation-delay: 1.1s; }
         .planner-summary-card:nth-child(1)::before,
         .summary-card:nth-child(1)::before,
         .stat-card:nth-child(1)::before,
@@ -4485,9 +4469,6 @@ export default function Markd() {
         .achievement-card {
           box-shadow: 0 12px 28px rgba(0,0,0,0.12);
         }
-        .achievement-card:nth-child(2n) {
-          transform: translateY(2px);
-        }
         .achievement-card:nth-child(3n)::after,
         .health-card:nth-child(3n)::after,
         .subject-mini:nth-child(3n)::after {
@@ -4525,12 +4506,6 @@ export default function Markd() {
           animation-duration: 5.2s;
         }
         @media (max-width: 767px) {
-          .planner-card,
-          .summary-card,
-          .insight-card,
-          .next-task-card {
-            animation-duration: 6.2s;
-          }
           .planner-card::before,
           .quick-add-card::before,
           .summary-card::before,

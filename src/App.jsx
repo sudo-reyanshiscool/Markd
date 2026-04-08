@@ -47,8 +47,15 @@ const PRIORITY_META = {
   soon: { label: "Soon", color: "var(--accent2)" },
   later: { label: "Later", color: "var(--accent3)" },
 };
+const TOPIC_CONFIDENCE_OPTIONS = [
+  { value: "weak", label: "Weak", color: "var(--danger)" },
+  { value: "okay", label: "Okay", color: "var(--accent2)" },
+  { value: "strong", label: "Strong", color: "var(--accent3)" },
+];
+const SESSION_PRESETS = [25, 45, 60];
 const DAILY_PLANNER_LIMIT = 6;
 const XP_PER_LEVEL = 120;
+const CLOUD_CACHE_PREFIX = "markd_cloud_cache_";
 
 // ─── Curriculum catalogues ───
 const CURRICULA = {
@@ -252,6 +259,20 @@ const sanitiseEstimate = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null;
 };
+const normaliseTopicConfidence = (entry = {}) => ({
+  id: entry.id || uid(),
+  subjectId: entry.subjectId || null,
+  topic: typeof entry.topic === "string" ? entry.topic.trim() : "",
+  confidence: TOPIC_CONFIDENCE_OPTIONS.some(option => option.value === entry.confidence) ? entry.confidence : "okay",
+  updatedAt: typeof entry.updatedAt === "string" ? entry.updatedAt : new Date().toISOString(),
+});
+const normaliseStudySession = (session = {}) => ({
+  id: session.id || uid(),
+  subjectId: session.subjectId || null,
+  taskId: session.taskId || null,
+  minutes: clamp(Number(session.minutes) || 0, 0, 240),
+  completedAt: typeof session.completedAt === "string" ? session.completedAt : new Date().toISOString(),
+});
 const normaliseTask = (task = {}) => {
   const done = Boolean(task.done);
   return {
@@ -297,6 +318,20 @@ const buildGoal = (goal = {}) =>
     completedAt: null,
     ...goal,
   });
+const encodeSharePayload = (payload) => {
+  try {
+    return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  } catch {
+    return "";
+  }
+};
+const decodeSharePayload = (value) => {
+  try {
+    return JSON.parse(decodeURIComponent(escape(atob(value))));
+  } catch {
+    return null;
+  }
+};
 
 // ─── Empty defaults for new users ───
 const EMPTY_SUBJECTS = [];
@@ -318,8 +353,12 @@ const createEmptyAppData = () => ({
   portfolio: [],
   activities: [],
   deleted: [],
+  topicConfidence: [],
+  studySessions: [],
   theme: "dark",
   revisionMode: false,
+  mockMode: false,
+  notificationsEnabled: false,
   healthIntroSeen: false,
   outlookCalendarUrl: "",
   calendarLastSync: null,
@@ -337,8 +376,12 @@ const normaliseAppData = (appData = {}) => {
     portfolio: Array.isArray(appData.portfolio) ? appData.portfolio : fallback.portfolio,
     activities: Array.isArray(appData.activities) ? appData.activities : fallback.activities,
     deleted: Array.isArray(appData.deleted) ? appData.deleted : fallback.deleted,
+    topicConfidence: Array.isArray(appData.topicConfidence) ? appData.topicConfidence.map(normaliseTopicConfidence).filter(entry => entry.topic) : fallback.topicConfidence,
+    studySessions: Array.isArray(appData.studySessions) ? appData.studySessions.map(normaliseStudySession).filter(session => session.minutes > 0) : fallback.studySessions,
     theme: appData.theme === "light" ? "light" : "dark",
     revisionMode: Boolean(appData.revisionMode),
+    mockMode: Boolean(appData.mockMode),
+    notificationsEnabled: Boolean(appData.notificationsEnabled),
     healthIntroSeen: Boolean(appData.healthIntroSeen),
     outlookCalendarUrl: typeof appData.outlookCalendarUrl === "string" ? appData.outlookCalendarUrl : "",
     calendarLastSync:
@@ -360,8 +403,12 @@ const isEmptyAppData = (appData = {}) => {
     data.portfolio.length === 0 &&
     data.activities.length === 0 &&
     data.deleted.length === 0 &&
+    data.topicConfidence.length === 0 &&
+    data.studySessions.length === 0 &&
     data.theme === "dark" &&
     data.revisionMode === false &&
+    data.mockMode === false &&
+    data.notificationsEnabled === false &&
     data.outlookCalendarUrl === "" &&
     data.calendarLastSync === null
   );
@@ -443,6 +490,7 @@ const NAV_ITEMS = [
   { key:"home", label:"Home", icon:icons.home },
   { key:"subjects", label:"Subjects", icon:icons.book },
   { key:"tasks", label:"Tasks", icon:icons.check },
+  { key:"timeline", label:"Timeline", icon:icons.calendar },
   { key:"deadlines", label:"Deadlines", icon:icons.calendar },
   { key:"exams", label:"Exams", icon:icons.clock },
   { key:"papers", label:"Papers", icon:icons.file },
@@ -729,8 +777,21 @@ const createDemoAppData = () => {
       { id: uid(), type: "task", item: deletedTask, label: deletedTask.text, deletedAt: "08:45" },
       { id: uid(), type: "goal", item: deletedGoal, label: deletedGoal.text, deletedAt: "13:10" },
     ],
+    topicConfidence: [
+      { id: uid(), subjectId: mathsId, topic: "Quadratics", confidence: "strong", updatedAt: new Date().toISOString() },
+      { id: uid(), subjectId: bioId, topic: "Respiration", confidence: "okay", updatedAt: new Date().toISOString() },
+      { id: uid(), subjectId: chemistryId, topic: "Organic chemistry", confidence: "weak", updatedAt: new Date().toISOString() },
+      { id: uid(), subjectId: computerScienceId, topic: "Algorithms", confidence: "strong", updatedAt: new Date().toISOString() },
+    ],
+    studySessions: [
+      { id: uid(), subjectId: mathsId, taskId: null, minutes: 45, completedAt: new Date(Date.now() - 86400000).toISOString() },
+      { id: uid(), subjectId: chemistryId, taskId: null, minutes: 25, completedAt: new Date(Date.now() - 2 * 86400000).toISOString() },
+      { id: uid(), subjectId: bioId, taskId: null, minutes: 60, completedAt: new Date(Date.now() - 3 * 86400000).toISOString() },
+    ],
     theme: "dark",
     revisionMode: false,
+    mockMode: false,
+    notificationsEnabled: false,
     healthIntroSeen: true,
     outlookCalendarUrl: "",
     calendarLastSync: null,
@@ -1018,15 +1079,120 @@ function AppBootScreen({ message }) {
   );
 }
 
+function SharedDashboardView({ snapshot }) {
+  const profile = snapshot?.profile || {};
+  const summary = snapshot?.summary || {};
+  const subjects = Array.isArray(snapshot?.subjects) ? snapshot.subjects : [];
+  const upcoming = Array.isArray(snapshot?.upcoming) ? snapshot.upcoming : [];
+  const report = snapshot?.report || { wins: [], risks: [], focus: [] };
+
+  return (
+    <div className="auth-root">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+        * { margin:0; padding:0; box-sizing:border-box; }
+        .auth-root { min-height:100vh; min-height:100dvh; background:#080810; background-image:radial-gradient(circle at 18% 18%, rgba(124,106,247,0.22) 0%, transparent 52%), radial-gradient(circle at 82% 82%, rgba(106,247,196,0.16) 0%, transparent 50%); color:#e8e8f0; font-family:'DM Mono',monospace; padding:28px 18px 36px; }
+        .share-shell { max-width:980px; margin:0 auto; }
+        .share-hero, .share-card { background:rgba(255,255,255,0.08); backdrop-filter:blur(24px) saturate(1.4); -webkit-backdrop-filter:blur(24px) saturate(1.4); border:1px solid rgba(255,255,255,0.12); border-radius:22px; }
+        .share-hero { padding:24px; margin-bottom:18px; }
+        .share-title { font-family:'Syne',sans-serif; font-size:30px; font-weight:800; margin-bottom:6px; }
+        .share-sub { color:#9d9db4; font-size:12px; line-height:1.7; }
+        .share-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-top:18px; }
+        .share-stat { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:14px; }
+        .share-stat-label { color:#9d9db4; font-size:10px; text-transform:uppercase; letter-spacing:1px; }
+        .share-stat-value { font-family:'Syne',sans-serif; font-size:24px; font-weight:700; margin-top:6px; }
+        .share-section-title { font-family:'Syne',sans-serif; font-size:18px; font-weight:700; margin:20px 0 10px; }
+        .share-card { padding:18px; margin-bottom:12px; }
+        .share-subject-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:10px; }
+        .share-subject-name { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; margin-bottom:10px; }
+        .share-row { display:flex; justify-content:space-between; gap:12px; padding:5px 0; color:#cfcfe6; font-size:12px; }
+        .share-row span:last-child { color:#ffffff; }
+        .share-pill-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+        .share-pill { padding:4px 8px; border-radius:999px; background:rgba(124,106,247,0.12); color:#dcd6ff; font-size:10px; }
+        .share-list { display:flex; flex-direction:column; gap:8px; }
+        .share-item { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.06); }
+        .share-item:last-child { border-bottom:none; }
+        .share-item-title { font-size:13px; color:#ffffff; }
+        .share-item-sub { font-size:11px; color:#9d9db4; margin-top:4px; }
+        .share-columns { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px; }
+        .share-bullet-list { display:flex; flex-direction:column; gap:8px; }
+        .share-bullet-item { font-size:12px; line-height:1.6; color:#d6d6ea; padding-left:14px; position:relative; }
+        .share-bullet-item::before { content:""; position:absolute; left:0; top:8px; width:6px; height:6px; border-radius:50%; background:#7c6af7; }
+        .share-open-app { display:inline-flex; align-items:center; justify-content:center; margin-top:18px; padding:10px 14px; border-radius:12px; background:#7c6af7; color:white; text-decoration:none; font-family:'Syne',sans-serif; font-weight:700; }
+      `}</style>
+
+      <div className="share-shell">
+        <div className="share-hero">
+          <div className="share-title">{profile.name || "Student"}'s Markd dashboard</div>
+          <div className="share-sub">
+            {profile.school ? `${profile.school} · ` : ""}Read-only parent or teacher view generated by Markd.
+          </div>
+          <div className="share-grid">
+            <div className="share-stat"><div className="share-stat-label">Streak</div><div className="share-stat-value">{summary.streak || 0} days</div></div>
+            <div className="share-stat"><div className="share-stat-label">Level</div><div className="share-stat-value">{summary.level || 1}</div></div>
+            <div className="share-stat"><div className="share-stat-label">Weekly tasks</div><div className="share-stat-value">{summary.weeklyTasks || 0}</div></div>
+            <div className="share-stat"><div className="share-stat-label">Weekly focus</div><div className="share-stat-value">{formatMinutes(summary.weeklyMinutes || 0)}</div></div>
+          </div>
+          <a className="share-open-app" href={typeof window !== "undefined" ? `${window.location.origin}${window.location.pathname}` : "#"}>Open main app</a>
+        </div>
+
+        <div className="share-section-title">Subject overview</div>
+        <div className="share-subject-grid">
+          {subjects.map(subject => (
+            <div key={subject.id} className="share-card">
+              <div className="share-subject-name">{subject.name}</div>
+              <div className="share-row"><span>Target</span><span>{subject.target}</span></div>
+              <div className="share-row"><span>Average</span><span>{subject.avg !== null && subject.avg !== undefined ? `${subject.avg}%` : "—"}</span></div>
+              <div className="share-row"><span>Health</span><span>{subject.health}</span></div>
+              <div className="share-row"><span>Next exam</span><span>{subject.nextExam ? `${subject.nextExam.name}` : "Not scheduled"}</span></div>
+              {subject.topics?.length > 0 && (
+                <div className="share-pill-row">
+                  {subject.topics.map(topic => <span key={topic.id} className="share-pill">{topic.topic} · {topic.confidence}</span>)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="share-section-title">Upcoming items</div>
+        <div className="share-card">
+          <div className="share-list">
+            {upcoming.map(item => (
+              <div key={item.id} className="share-item">
+                <div>
+                  <div className="share-item-title">{item.label}</div>
+                  <div className="share-item-sub">{item.subjectName} · {item.kind}</div>
+                </div>
+                <div className="share-item-sub">{fmtDate(item.date)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="share-section-title">Weekly report</div>
+        <div className="share-columns">
+          <div className="share-card"><div className="share-subject-name">Wins</div><div className="share-bullet-list">{(report.wins || []).map((item, index) => <div key={index} className="share-bullet-item">{item}</div>)}</div></div>
+          <div className="share-card"><div className="share-subject-name">Risks</div><div className="share-bullet-list">{(report.risks || []).map((item, index) => <div key={index} className="share-bullet-item">{item}</div>)}</div></div>
+          <div className="share-card"><div className="share-subject-name">Next focus</div><div className="share-bullet-list">{(report.focus || []).map((item, index) => <div key={index} className="share-bullet-item">{item}</div>)}</div></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════
 // Main App
 // ═══════════════════════════════════════════
 export default function Markd() {
   const [authUser, setAuthUser] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [sharedViewData, setSharedViewData] = useState(null);
   const [demoMode, setDemoMode] = useState(false);
   const [authInitialising, setAuthInitialising] = useState(true);
   const [cloudHydrating, setCloudHydrating] = useState(false);
+  const [isOnline, setIsOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
+  const [cloudPending, setCloudPending] = useState(false);
+  const [lastCloudSyncAt, setLastCloudSyncAt] = useState(null);
   const userId = authUser?.id || null;
 
   const [page, setPage] = useState("home");
@@ -1042,8 +1208,12 @@ export default function Markd() {
   const [portfolio, setPortfolio] = useState(EMPTY_PORTFOLIO);
   const [activities, setActivities] = useState(EMPTY_ACTIVITIES);
   const [recentlyDeleted, setRecentlyDeleted] = useState([]);
+  const [topicConfidence, setTopicConfidence] = useState([]);
+  const [studySessions, setStudySessions] = useState([]);
   const [theme, setTheme] = useState("dark");
   const [revisionMode, setRevisionMode] = useState(false);
+  const [mockMode, setMockMode] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [healthIntroSeen, setHealthIntroSeen] = useState(false);
   const [outlookCalendarUrl, setOutlookCalendarUrl] = useState("");
   const [calendarLastSync, setCalendarLastSync] = useState(null);
@@ -1081,10 +1251,21 @@ export default function Markd() {
   const [highlightedTaskId, setHighlightedTaskId] = useState(null);
   const [completionBurstId, setCompletionBurstId] = useState(null);
   const [healthIntroOpen, setHealthIntroOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [sessionActive, setSessionActive] = useState(false);
+  const [sessionPaused, setSessionPaused] = useState(false);
+  const [sessionSecondsLeft, setSessionSecondsLeft] = useState(25 * 60);
+  const [sessionPresetMinutes, setSessionPresetMinutes] = useState(25);
+  const [sessionSubjectId, setSessionSubjectId] = useState("");
+  const [sessionTaskId, setSessionTaskId] = useState("");
+  const [notificationToast, setNotificationToast] = useState("");
   const [presentationMode, setPresentationMode] = useState(false);
   const [presentationStepIndex, setPresentationStepIndex] = useState(0);
   const [presentationSpotlightRect, setPresentationSpotlightRect] = useState(null);
   const activePresentationStep = presentationMode ? PRESENTATION_STEPS[presentationStepIndex] : null;
+  const cloudCacheKey = userId ? `${CLOUD_CACHE_PREFIX}${userId}` : "";
 
   const resetPersistedState = () => {
     const empty = createEmptyAppData();
@@ -1097,8 +1278,12 @@ export default function Markd() {
     setPortfolio(empty.portfolio);
     setActivities(empty.activities);
     setRecentlyDeleted(empty.deleted);
+    setTopicConfidence(empty.topicConfidence);
+    setStudySessions(empty.studySessions);
     setTheme(empty.theme);
     setRevisionMode(empty.revisionMode);
+    setMockMode(empty.mockMode);
+    setNotificationsEnabled(empty.notificationsEnabled);
     setHealthIntroSeen(empty.healthIntroSeen);
     setOutlookCalendarUrl(empty.outlookCalendarUrl);
     setCalendarLastSync(empty.calendarLastSync);
@@ -1117,8 +1302,12 @@ export default function Markd() {
     setPortfolio(next.portfolio);
     setActivities(next.activities);
     setRecentlyDeleted(next.deleted);
+    setTopicConfidence(next.topicConfidence);
+    setStudySessions(next.studySessions);
     setTheme(next.theme);
     setRevisionMode(next.revisionMode);
+    setMockMode(next.mockMode);
+    setNotificationsEnabled(next.notificationsEnabled);
     setHealthIntroSeen(next.healthIntroSeen);
     setOutlookCalendarUrl(next.outlookCalendarUrl);
     setCalendarLastSync(next.calendarLastSync);
@@ -1135,8 +1324,12 @@ export default function Markd() {
     portfolio,
     activities,
     deleted: recentlyDeleted,
+    topicConfidence,
+    studySessions,
     theme,
     revisionMode,
+    mockMode,
+    notificationsEnabled,
     healthIntroSeen,
     outlookCalendarUrl,
     calendarLastSync,
@@ -1190,6 +1383,86 @@ export default function Markd() {
       setQuickTaskSubjectId("");
     }
   }, [quickTaskSubjectId, subjects]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const sharedPayload = params.get("share");
+    if (!sharedPayload) return;
+
+    const parsed = decodeSharePayload(sharedPayload);
+    if (parsed) {
+      setSharedViewData(parsed);
+      setAuthInitialising(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleConnectionChange = () => setIsOnline(navigator.onLine);
+    window.addEventListener("online", handleConnectionChange);
+    window.addEventListener("offline", handleConnectionChange);
+    return () => {
+      window.removeEventListener("online", handleConnectionChange);
+      window.removeEventListener("offline", handleConnectionChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!cloudCacheKey || typeof window === "undefined" || sharedViewData) return;
+    try {
+      localStorage.setItem(cloudCacheKey, JSON.stringify(exportPersistedState()));
+    } catch {}
+  }, [activities, calendarLastSync, cloudCacheKey, deadlines, exams, goals, mockMode, notificationsEnabled, outlookCalendarUrl, papers, portfolio, recentlyDeleted, revisionMode, sharedViewData, studySessions, subjects, tasks, theme, topicConfidence]);
+
+  useEffect(() => {
+    if (!sessionActive || sessionPaused) return;
+    const intervalId = window.setInterval(() => {
+      setSessionSecondsLeft(current => {
+        if (current <= 1) {
+          window.clearInterval(intervalId);
+          finishStudySession();
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [sessionActive, sessionPaused, sessionPresetMinutes, sessionSubjectId, sessionTaskId]);
+
+  useEffect(() => {
+    if (!notificationToast) return;
+    const timeoutId = window.setTimeout(() => setNotificationToast(""), 2400);
+    return () => window.clearTimeout(timeoutId);
+  }, [notificationToast]);
+
+  useEffect(() => {
+    if (!notificationsEnabled || !isOnline || typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") {
+      return;
+    }
+
+    const reminders = [
+      ...deadlines.filter(item => daysUntil(item.date) >= 0 && daysUntil(item.date) <= 1).map(item => ({
+        key: `deadline-${item.id}-${toDateKey(item.date)}`,
+        title: "Markd reminder",
+        body: `${item.title} for ${subName(item.subjectId)} is due ${daysUntil(item.date) === 0 ? "today" : "tomorrow"}.`,
+      })),
+      ...exams.filter(item => daysUntil(item.date) >= 0 && daysUntil(item.date) <= 3).map(item => ({
+        key: `exam-${item.id}-${toDateKey(item.date)}`,
+        title: "Markd exam alert",
+        body: `${item.name} is in ${daysUntil(item.date)} day${daysUntil(item.date) === 1 ? "" : "s"}.`,
+      })),
+    ];
+
+    reminders.slice(0, 2).forEach(reminder => {
+      const rememberKey = `markd_notice_${reminder.key}`;
+      if (localStorage.getItem(rememberKey) === todayKey) return;
+      new Notification(reminder.title, { body: reminder.body });
+      localStorage.setItem(rememberKey, todayKey);
+    });
+  }, [deadlines, exams, isOnline, notificationsEnabled, todayKey]);
 
   useEffect(() => {
     if (!currentUser || demoMode || cloudHydrating || loadedUserId !== userId || healthIntroSeen || healthIntroOpen) {
@@ -1300,6 +1573,11 @@ export default function Markd() {
     let cancelled = false;
 
     const syncAuthState = async (session) => {
+      if (sharedViewData) {
+        if (!cancelled) setAuthInitialising(false);
+        return;
+      }
+
       if (!isSupabaseConfigured || !supabase) {
         if (!cancelled) setAuthInitialising(false);
         return;
@@ -1357,12 +1635,17 @@ export default function Markd() {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [sharedViewData]);
 
   useEffect(() => {
     let cancelled = false;
 
     const hydrateCloudState = async () => {
+      if (sharedViewData) {
+        setCloudHydrating(false);
+        return;
+      }
+
       if (demoMode) {
         setCloudHydrating(false);
         return;
@@ -1410,10 +1693,22 @@ export default function Markd() {
           setCurrentUser(buildSessionUser(authUser, profile));
           applyPersistedState(nextAppData);
           setLoadedUserId(authUser.id);
+          setCloudPending(false);
         }
       } catch (error) {
         console.error("Failed to load cloud workspace", error);
         if (!cancelled) {
+          if (cloudCacheKey && typeof window !== "undefined") {
+            try {
+              const cached = localStorage.getItem(cloudCacheKey);
+              if (cached) {
+                applyPersistedState(JSON.parse(cached));
+                setLoadedUserId(authUser.id);
+                setCloudPending(true);
+                return;
+              }
+            } catch {}
+          }
           resetPersistedState();
           setLoadedUserId(null);
         }
@@ -1427,10 +1722,14 @@ export default function Markd() {
     return () => {
       cancelled = true;
     };
-  }, [authUser, demoMode]);
+  }, [authUser, cloudCacheKey, demoMode, sharedViewData]);
 
   useEffect(() => {
-    if (!authUser || !currentUser || loadedUserId !== userId || cloudHydrating || demoMode) return;
+    if (!authUser || !currentUser || loadedUserId !== userId || cloudHydrating || demoMode || sharedViewData) return;
+    if (!isOnline) {
+      setCloudPending(true);
+      return;
+    }
 
     const timeoutId = setTimeout(() => {
       upsertProfile({
@@ -1439,9 +1738,15 @@ export default function Markd() {
         name: currentUser.name,
         school: currentUser.school,
         appData: exportPersistedState(),
-      }).catch((error) => {
-        console.error("Failed to sync cloud workspace", error);
-      });
+      })
+        .then(() => {
+          setCloudPending(false);
+          setLastCloudSyncAt(new Date().toISOString());
+        })
+        .catch((error) => {
+          console.error("Failed to sync cloud workspace", error);
+          setCloudPending(true);
+        });
     }, 450);
 
     return () => clearTimeout(timeoutId);
@@ -1462,8 +1767,14 @@ export default function Markd() {
     tasks,
     theme,
     revisionMode,
+    mockMode,
+    notificationsEnabled,
+    topicConfidence,
+    studySessions,
     healthIntroSeen,
+    isOnline,
     outlookCalendarUrl,
+    sharedViewData,
     userId,
     authUser,
   ]);
@@ -1688,6 +1999,12 @@ export default function Markd() {
       return Math.abs(gradeToPercent(grade) - avg) < Math.abs(gradeToPercent(best) - avg) ? grade : best;
     }, null);
   };
+  const getTopicConfidenceMeta = (confidence) =>
+    TOPIC_CONFIDENCE_OPTIONS.find(option => option.value === confidence) || TOPIC_CONFIDENCE_OPTIONS[1];
+  const getTopicConfidenceEntries = (subjectId) =>
+    topicConfidence
+      .filter(entry => entry.subjectId === subjectId)
+      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   const getTopicProgress = (subjectId) => {
     const topicMap = new Map();
     tasks
@@ -1705,13 +2022,96 @@ export default function Markd() {
       .sort((a, b) => b.total - a.total || a.topic.localeCompare(b.topic))
       .slice(0, 3);
   };
+  const timelineItems = [...deadlines.map(item => ({ ...item, kind: "deadline", label: item.title })), ...exams.map(item => ({ ...item, kind: "exam", label: item.name }))]
+    .filter(item => daysUntil(item.date) >= 0)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const groupedTimeline = timelineItems.reduce((groups, item) => {
+    const key = item.date;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+    return groups;
+  }, {});
+  const weeklyStudySessions = studySessions.filter(session => {
+    const sessionKey = toDateKey(session.completedAt);
+    return sessionKey && sessionKey >= shiftDateKey(todayKey, -6);
+  });
+  const weeklySessionMinutes = weeklyStudySessions.reduce((sum, session) => sum + session.minutes, 0);
+  const totalFocusMinutesThisWeek = weeklyCompletedMinutes + weeklySessionMinutes;
   const weeklySummary = {
     tasks: weeklyCompletedTasks.length,
     goals: weeklyCompletedGoals.length,
-    minutes: weeklyCompletedMinutes,
+    minutes: totalFocusMinutesThisWeek,
+    sessionMinutes: weeklySessionMinutes,
     urgentLeft: rankedTasks.filter(task => task.effectivePriority === "urgent").length,
     trend: paperTrendDelta,
   };
+  const weakTopics = topicConfidence.filter(entry => entry.confidence === "weak");
+  const slippingSubjects = subjects
+    .map(subject => ({ ...subject, health: getSubjectHealth(subject.id) }))
+    .sort((a, b) => a.health - b.health)
+    .slice(0, 3);
+  const generatedReport = {
+    wins: [
+      `${weeklySummary.tasks} tasks completed this week`,
+      `${weeklySummary.goals} goals finished`,
+      `${formatMinutes(weeklySummary.minutes)} total focused work logged`,
+    ],
+    risks: [
+      weeklySummary.urgentLeft > 0 ? `${weeklySummary.urgentLeft} urgent task${weeklySummary.urgentLeft === 1 ? "" : "s"} still open` : "No urgent tasks left",
+      slippingSubjects[0] ? `${slippingSubjects[0].name} has the lowest health score at ${slippingSubjects[0].health}` : "All subjects are balanced right now",
+      timelineItems[0] ? `Closest deadline or exam: ${timelineItems[0].label} in ${daysUntil(timelineItems[0].date)} day${daysUntil(timelineItems[0].date) === 1 ? "" : "s"}` : "No upcoming deadlines or exams",
+    ],
+    focus: [
+      suggestedTask ? `Start with ${suggestedTask.text}` : "Add a few more tasks to generate a clearer focus plan",
+      weakTopics[0] ? `Revisit ${weakTopics[0].topic} in ${subName(weakTopics[0].subjectId)}` : "No weak topics flagged right now",
+      slippingSubjects[1] ? `Protect ${slippingSubjects[1].name} before it slips further` : "Keep momentum with one more focused session this week",
+    ],
+  };
+  const currentLevelReward = level >= 8
+    ? "Mentor status: your dashboard now looks like a proper academic command centre."
+    : level >= 5
+      ? "Strategist tier: you’ve built real consistency across tasks, papers, and goals."
+      : level >= 3
+        ? "Momentum tier: your routine is starting to compound."
+        : "Starter tier: every finished task is building your system.";
+  const shareSnapshot = {
+    generatedAt: new Date().toISOString(),
+    profile: {
+      name: currentUser.name,
+      school: currentUser.school,
+    },
+    summary: {
+      streak,
+      level,
+      weeklyTasks: weeklySummary.tasks,
+      weeklyMinutes: weeklySummary.minutes,
+    },
+    subjects: subjects.map(subject => ({
+      id: subject.id,
+      name: subject.name,
+      target: subject.target,
+      avg: avgMark(subject.id),
+      health: getSubjectHealth(subject.id),
+      nextExam: getNextExamForSubject(subject.id)
+        ? {
+            name: getNextExamForSubject(subject.id).name,
+            date: getNextExamForSubject(subject.id).date,
+          }
+        : null,
+      topics: getTopicConfidenceEntries(subject.id).slice(0, 4),
+    })),
+    upcoming: timelineItems.slice(0, 8).map(item => ({
+      id: item.id,
+      kind: item.kind,
+      label: item.label,
+      date: item.date,
+      subjectName: subName(item.subjectId),
+    })),
+    report: generatedReport,
+  };
+  const shareUrl = typeof window !== "undefined"
+    ? `${window.location.origin}${window.location.pathname}?share=${encodeSharePayload(shareSnapshot)}`
+    : "";
   const motivationalInsight = (() => {
     if (streak >= 5) return `You’re on a ${streak}-day streak. Protect it by finishing ${suggestedTask ? `"${suggestedTask.text}"` : "one focused task"} next.`;
     if (weeklySummary.tasks >= 6) return `Strong week so far: ${weeklySummary.tasks} tasks down and ${formatMinutes(weeklySummary.minutes)} of focused work logged.`;
@@ -1778,6 +2178,85 @@ export default function Markd() {
     ]);
     setQuickTaskText("");
     setQuickTaskTopic("");
+  };
+  const openTopicModal = (subjectId) => {
+    setForm({ subjectId, confidence: "okay", topic: "" });
+    setModal("manageTopic");
+  };
+  const saveTopicConfidence = () => {
+    const topic = String(form.topic || "").trim();
+    const subjectId = form.subjectId || null;
+    if (!topic || !subjectId) return;
+
+    setTopicConfidence(current => {
+      const existing = current.find(entry => entry.subjectId === subjectId && entry.topic.toLowerCase() === topic.toLowerCase());
+      if (existing) {
+        return current.map(entry =>
+          entry.id === existing.id
+            ? normaliseTopicConfidence({ ...entry, confidence: form.confidence || entry.confidence, updatedAt: new Date().toISOString() })
+            : entry
+        );
+      }
+      return [
+        ...current,
+        normaliseTopicConfidence({ subjectId, topic, confidence: form.confidence || "okay", updatedAt: new Date().toISOString() }),
+      ];
+    });
+    setModal(null);
+  };
+  const deleteTopicConfidence = (entryId) => {
+    setTopicConfidence(current => current.filter(entry => entry.id !== entryId));
+  };
+  const finishStudySession = () => {
+    const minutes = Math.round((sessionPresetMinutes * 60 - sessionSecondsLeft) / 60);
+    const completedMinutes = minutes > 0 ? minutes : sessionPresetMinutes;
+    if (completedMinutes > 0) {
+      setStudySessions(current => [
+        ...current,
+        normaliseStudySession({
+          subjectId: sessionSubjectId || suggestedTask?.subjectId || subjects[0]?.id || null,
+          taskId: sessionTaskId || suggestedTask?.id || null,
+          minutes: completedMinutes,
+          completedAt: new Date().toISOString(),
+        }),
+      ]);
+    }
+    setSessionActive(false);
+    setSessionPaused(false);
+    setSessionSecondsLeft(sessionPresetMinutes * 60);
+    setSessionTaskId("");
+  };
+  const startStudySession = (minutes = sessionPresetMinutes) => {
+    setSessionPresetMinutes(minutes);
+    setSessionSecondsLeft(minutes * 60);
+    setSessionSubjectId(current => current || suggestedTask?.subjectId || subjects[0]?.id || "");
+    setSessionTaskId(current => current || suggestedTask?.id || "");
+    setSessionPaused(false);
+    setSessionActive(true);
+  };
+  const copyShareUrl = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 1600);
+    } catch {
+      window.prompt("Copy this share link:", shareUrl);
+    }
+  };
+  const requestNotifications = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setNotificationToast("Notifications are not supported on this device.");
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      setNotificationsEnabled(true);
+      setNotificationToast("Reminders enabled.");
+      return;
+    }
+    setNotificationsEnabled(false);
+    setNotificationToast("Notifications were not allowed.");
   };
   const downloadBackup = () => {
     const payload = {
@@ -2174,6 +2653,79 @@ export default function Markd() {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+
+  const renderFocusTimerCard = () => {
+    const selectedTask = tasks.find(task => task.id === sessionTaskId) || suggestedTask || null;
+    const selectedSubjectId = sessionSubjectId || selectedTask?.subjectId || subjects[0]?.id || "";
+    const minutesLeft = Math.floor(sessionSecondsLeft / 60);
+    const secondsLeft = String(sessionSecondsLeft % 60).padStart(2, "0");
+
+    return (
+      <div className="planner-card">
+        <div className="planner-head">
+          <div>
+            <div className="planner-eyebrow">Study session timer</div>
+            <div className="planner-title">Deep work sprint</div>
+          </div>
+          <div className="timer-clock">{minutesLeft}:{secondsLeft}</div>
+        </div>
+        <div className="planner-sub">Run focused sessions against a subject or suggested task and log the minutes into your weekly summary.</div>
+        <div className="timer-grid">
+          <select className="modal-input" value={selectedSubjectId} onChange={event => setSessionSubjectId(event.target.value)}>
+            <option value="">Choose subject</option>
+            {subjects.map(subject => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+          </select>
+          <select className="modal-input" value={sessionTaskId} onChange={event => setSessionTaskId(event.target.value)}>
+            <option value="">Suggested task</option>
+            {rankedTasks.slice(0, 8).map(task => <option key={task.id} value={task.id}>{task.text}</option>)}
+          </select>
+        </div>
+        <div className="timer-preset-row">
+          {SESSION_PRESETS.map(preset => (
+            <button key={preset} className={`timer-preset ${sessionPresetMinutes === preset ? "active" : ""}`} onClick={() => { setSessionPresetMinutes(preset); if (!sessionActive) setSessionSecondsLeft(preset * 60); }}>
+              {preset} min
+            </button>
+          ))}
+        </div>
+        <div className="presentation-actions" style={{justifyContent:"flex-start", marginTop:0}}>
+          {!sessionActive ? (
+            <button className="presentation-btn primary" onClick={() => startStudySession(sessionPresetMinutes)}>Start session</button>
+          ) : (
+            <>
+              <button className="presentation-btn secondary" onClick={() => setSessionPaused(value => !value)}>{sessionPaused ? "Resume" : "Pause"}</button>
+              <button className="presentation-btn primary" onClick={finishStudySession}>Log session</button>
+            </>
+          )}
+          <button className="presentation-btn secondary" onClick={() => { setSessionActive(false); setSessionPaused(false); setSessionSecondsLeft(sessionPresetMinutes * 60); }}>Reset</button>
+        </div>
+        {selectedTask && <div className="quick-add-preview"><span>Linked task:</span><span className="task-topic-pill">{selectedTask.text}</span></div>}
+      </div>
+    );
+  };
+
+  const renderTimeline = () => (
+    <div className="page">
+      <h2 className="page-title">Timeline</h2>
+      {timelineItems.length === 0 ? <EmptyState icon={icons.calendar} message="No deadlines or exams yet. Add one and it will show up here." action={() => setPage("deadlines")} actionLabel="Open planner"/> : (
+        Object.entries(groupedTimeline).map(([date, items]) => (
+          <div key={date} className="group-section">
+            <div className="group-label">{fmtDate(date)}</div>
+            {items.map(item => (
+              <div key={`${item.kind}-${item.id}`} className="list-item" style={{borderLeft:`3px solid ${subColour(item.subjectId)}`}}>
+                <div>
+                  <div className="list-item-title">{item.label}</div>
+                  <div className="list-item-sub">{subName(item.subjectId)} · {item.kind === "exam" ? "Exam" : "Deadline"} · {daysUntil(item.date)} day{daysUntil(item.date) === 1 ? "" : "s"}</div>
+                </div>
+                <span className="badge" style={{background:(item.kind === "exam" ? "var(--accent)" : getPriorityMeta(daysUntil(item.date) <= 3 ? "urgent" : daysUntil(item.date) <= 10 ? "soon" : "later").color) + "22", color:item.kind === "exam" ? "var(--accent)" : getPriorityMeta(daysUntil(item.date) <= 3 ? "urgent" : daysUntil(item.date) <= 10 ? "soon" : "later").color}}>
+                  {item.kind === "exam" ? "Exam" : "Due"}
+                </span>
+              </div>
+            ))}
+          </div>
+        ))
       )}
     </div>
   );

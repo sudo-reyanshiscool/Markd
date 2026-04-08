@@ -2602,9 +2602,52 @@ export default function Markd() {
 
     const rect = presentationSpotlightRect;
     const currentStep = presentationStepIndex + 1;
-    const panelStyle = rect && typeof window !== "undefined" && rect.top > window.innerHeight * 0.48
-      ? { top: 22, bottom: "auto" }
-      : { bottom: 22, top: "auto" };
+    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1280;
+    const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 800;
+    const panelGap = 18;
+    const panelWidth = Math.min(380, Math.max(280, viewportWidth - 24));
+    const panelHeightEstimate = 248;
+    const clampPanelX = (value) => clamp(value, 12, viewportWidth - panelWidth - 12);
+    const clampPanelY = (value) => clamp(value, 16, viewportHeight - panelHeightEstimate - 16);
+
+    let panelStyle = {
+      width: panelWidth,
+      left: clampPanelX((viewportWidth - panelWidth) / 2),
+      top: clampPanelY(viewportHeight - panelHeightEstimate - 18),
+    };
+
+    if (rect) {
+      const spaceRight = viewportWidth - rect.left - rect.width - panelGap - panelWidth - 12;
+      const spaceLeft = rect.left - panelGap - panelWidth - 12;
+      const spaceBelow = viewportHeight - rect.top - rect.height - panelGap - panelHeightEstimate - 16;
+      const spaceAbove = rect.top - panelGap - panelHeightEstimate - 16;
+
+      if (viewportWidth >= 1080 && spaceRight >= 0) {
+        panelStyle = {
+          width: panelWidth,
+          left: rect.left + rect.width + panelGap,
+          top: clampPanelY(rect.top + rect.height / 2 - panelHeightEstimate / 2),
+        };
+      } else if (viewportWidth >= 1080 && spaceLeft >= 0) {
+        panelStyle = {
+          width: panelWidth,
+          left: rect.left - panelWidth - panelGap,
+          top: clampPanelY(rect.top + rect.height / 2 - panelHeightEstimate / 2),
+        };
+      } else if (spaceBelow >= 0 || spaceBelow >= spaceAbove) {
+        panelStyle = {
+          width: panelWidth,
+          left: clampPanelX(rect.left + rect.width / 2 - panelWidth / 2),
+          top: clampPanelY(rect.top + rect.height + panelGap),
+        };
+      } else {
+        panelStyle = {
+          width: panelWidth,
+          left: clampPanelX(rect.left + rect.width / 2 - panelWidth / 2),
+          top: clampPanelY(rect.top - panelHeightEstimate - panelGap),
+        };
+      }
+    }
 
     return (
       <div className="presentation-overlay" aria-live="polite">
@@ -2629,7 +2672,7 @@ export default function Markd() {
           </div>
           <div className="presentation-title">{activePresentationStep.title}</div>
           <div className="presentation-copy">{activePresentationStep.body}</div>
-          <div className="presentation-hint">Press your clicker’s next button, right arrow, space, or enter to move forward.</div>
+          <div className="presentation-hint">Use your clicker, right arrow, space, or enter for next. Left arrow goes back.</div>
           <div className="presentation-actions">
             <button className="presentation-btn secondary" onClick={goToPreviousPresentationStep} disabled={presentationStepIndex === 0}>Back</button>
             <button className="presentation-btn secondary" onClick={stopPresentationMode}>End</button>
@@ -3146,23 +3189,28 @@ export default function Markd() {
         .revision-trigger { padding:8px 12px; border-radius:999px; border:1px solid rgba(124,106,247,0.24); background:rgba(124,106,247,0.08); color:var(--accent); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; transition:transform 0.2s ease, background 0.2s ease, border-color 0.2s ease; }
         .revision-trigger.active { background:var(--accent); color:white; border-color:var(--accent); }
         .revision-trigger:hover { transform:translateY(-2px); }
-        .presentation-target-active { position:relative; z-index:355 !important; }
+        .presentation-target-active { position:relative; z-index:355 !important; transform:none !important; }
         .presentation-overlay { position:fixed; inset:0; z-index:340; pointer-events:none; }
-        .presentation-blur-pane { position:fixed; background:rgba(7,7,14,0.4); backdrop-filter:blur(16px) saturate(0.82); -webkit-backdrop-filter:blur(16px) saturate(0.82); pointer-events:auto; }
-        .presentation-spotlight { position:fixed; border-radius:24px; border:1px solid rgba(255,255,255,0.16); box-shadow:0 0 0 2px rgba(124,106,247,0.48), 0 18px 38px rgba(0,0,0,0.35); pointer-events:none; }
-        .presentation-panel { position:fixed; left:50%; transform:translateX(-50%); width:min(440px, calc(100vw - 28px)); background:rgba(10,10,18,0.88); border:1px solid rgba(255,255,255,0.12); border-radius:24px; padding:18px 18px 16px; backdrop-filter:blur(24px) saturate(1.4); -webkit-backdrop-filter:blur(24px) saturate(1.4); box-shadow:0 24px 52px rgba(0,0,0,0.38); pointer-events:auto; }
+        .presentation-blur-pane { position:fixed; background:rgba(7,7,14,0.28); backdrop-filter:blur(9px) saturate(0.92); -webkit-backdrop-filter:blur(9px) saturate(0.92); pointer-events:auto; transition:all 0.22s ease; }
+        .presentation-spotlight { position:fixed; border-radius:24px; border:1px solid rgba(255,255,255,0.14); box-shadow:0 0 0 2px rgba(124,106,247,0.34), 0 16px 30px rgba(0,0,0,0.24); pointer-events:none; transition:all 0.22s ease; }
+        .presentation-panel { position:fixed; background:rgba(10,10,18,0.84); border:1px solid rgba(255,255,255,0.1); border-radius:22px; padding:16px 16px 14px; backdrop-filter:blur(22px) saturate(1.35); -webkit-backdrop-filter:blur(22px) saturate(1.35); box-shadow:0 20px 44px rgba(0,0,0,0.3); pointer-events:auto; max-height:min(42vh, 320px); overflow:auto; }
         .presentation-panel-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
         .presentation-step-pill { display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px; background:rgba(124,106,247,0.14); color:var(--accent); font-size:10px; text-transform:uppercase; letter-spacing:1px; }
         .presentation-close { width:32px; height:32px; border-radius:50%; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.04); display:flex; align-items:center; justify-content:center; cursor:pointer; }
-        .presentation-title { font-family:'Syne',sans-serif; font-size:22px; font-weight:700; line-height:1.15; margin-bottom:8px; }
-        .presentation-copy { color:var(--text); font-size:12px; line-height:1.65; }
-        .presentation-hint { color:var(--muted); font-size:10px; line-height:1.5; margin-top:10px; }
-        .presentation-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+        .presentation-title { font-family:'Syne',sans-serif; font-size:20px; font-weight:700; line-height:1.15; margin-bottom:8px; }
+        .presentation-copy { color:var(--text); font-size:12px; line-height:1.6; }
+        .presentation-hint { color:var(--muted); font-size:10px; line-height:1.5; margin-top:8px; }
+        .presentation-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
         .presentation-btn { border-radius:12px; padding:10px 14px; font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; transition:transform 0.18s ease, opacity 0.18s ease, border-color 0.18s ease; }
         .presentation-btn:hover:not(:disabled) { transform:translateY(-2px); }
         .presentation-btn:disabled { opacity:0.45; cursor:default; }
         .presentation-btn.secondary { border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:var(--text); }
         .presentation-btn.primary { border:none; background:var(--accent); color:white; font-weight:700; }
+        @media (max-width:767px) {
+          .presentation-panel { max-height:46vh; }
+          .presentation-actions { flex-wrap:wrap; }
+          .presentation-btn { flex:1 1 96px; }
+        }
         .planner-card, .quick-add-card, .summary-card, .insight-card, .achievement-card, .health-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; transition:transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease; }
         .planner-card:hover, .quick-add-card:hover, .summary-card:hover, .insight-card:hover, .achievement-card:hover, .health-card:hover { transform:translateY(-4px); border-color:rgba(124,106,247,0.26); box-shadow:0 16px 28px rgba(0,0,0,0.16); }
         .planner-card { padding:18px; margin-bottom:16px; }

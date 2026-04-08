@@ -3532,7 +3532,7 @@ export default function Markd() {
   // ═══════════════════════════════════
   // MAIN RENDER
   // ═══════════════════════════════════
-  const pages = { home:renderHome, subjects:renderSubjects, tasks:renderTasks, deadlines:renderDeadlines, exams:renderExams, papers:renderPapers, goals:renderGoals, activities:renderActivities, portfolio:renderPortfolio };
+  const pages = { home:renderHome, subjects:renderSubjects, tasks:renderTasks, deadlines:renderDeadlines, timeline:renderTimeline, exams:renderExams, papers:renderPapers, goals:renderGoals, activities:renderActivities, portfolio:renderPortfolio };
   const visibleNavItems = revisionMode ? NAV_ITEMS.filter(item => !["activities", "portfolio"].includes(item.key)) : NAV_ITEMS;
 
   return (

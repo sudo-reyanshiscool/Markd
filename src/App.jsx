@@ -1434,6 +1434,13 @@ export default function Markd() {
     </div>
   );
 
+  const Field = ({ label, children }) => (
+    <div className="modal-field">
+      <div className="field-label">{label}</div>
+      {children}
+    </div>
+  );
+
   // ═══════════════════════════════════
   // PAGES
   // ═══════════════════════════════════
@@ -1844,16 +1851,16 @@ export default function Markd() {
       } else {
         onSave=addSubject; saveLabel="Save";
         content=(<>
-          <input className="modal-input" placeholder="Subject name" value={form.name||""} onChange={e=>updateForm("name",e.target.value)}/>
-          <select className="modal-input" value={form.board||"AQA"} onChange={e=>updateForm("board",e.target.value)}>{EXAM_BOARDS.map(b=><option key={b} value={b}>{b}</option>)}</select>
-          <select className="modal-input" value={form.target||"5"} onChange={e=>updateForm("target",e.target.value)}>{GRADES.map(g=><option key={g} value={g}>Grade {g}</option>)}</select>
-          <div className="colour-swatches">{PALETTE.map(c=>(<button key={c} className={`swatch ${(form.colour||PALETTE[0])===c?"active":""}`} style={{background:c}} onClick={()=>updateForm("colour",c)}/>))}</div>
+          <Field label="Subject name"><input className="modal-input" placeholder="e.g. Further Mathematics" value={form.name||""} onChange={e=>updateForm("name",e.target.value)}/></Field>
+          <Field label="Exam board"><select className="modal-input" value={form.board||"AQA"} onChange={e=>updateForm("board",e.target.value)}>{EXAM_BOARDS.map(b=><option key={b} value={b}>{b}</option>)}</select></Field>
+          <Field label="Target grade"><select className="modal-input" value={form.target||"5"} onChange={e=>updateForm("target",e.target.value)}>{GRADES.map(g=><option key={g} value={g}>Grade {g}</option>)}</select></Field>
+          <Field label="Colour"><div className="colour-swatches">{PALETTE.map(c=>(<button key={c} className={`swatch ${(form.colour||PALETTE[0])===c?"active":""}`} style={{background:c}} onClick={()=>updateForm("colour",c)}/>))}</div></Field>
           <button className="browse-switch" onClick={()=>setSubjectTab("browse")}>Or browse GCSE / IGCSE / IB subjects</button>
         </>);
       }
-    } else if (modal==="addTask") { title="Add Task"; onSave=addTask; content=(<><input className="modal-input" placeholder="Task description" value={form.text||""} onChange={e=>updateForm("text",e.target.value)}/><SubjectSelect/></>); }
-    else if (modal==="addDeadline") { title="Add Deadline"; onSave=addDeadline; content=(<><input className="modal-input" placeholder="Deadline title" value={form.title||""} onChange={e=>updateForm("title",e.target.value)}/><SubjectSelect/><input className="modal-input" type="date" value={form.date||""} onChange={e=>updateForm("date",e.target.value)}/></>); }
-    else if (modal==="addExam") { title="Add Exam"; onSave=addExam; content=(<><input className="modal-input" placeholder="Exam name" value={form.name||""} onChange={e=>updateForm("name",e.target.value)}/><SubjectSelect/><select className="modal-input" value={form.board||""} onChange={e=>updateForm("board",e.target.value)}><option value="">Exam board</option>{EXAM_BOARDS.map(b=><option key={b} value={b}>{b}</option>)}</select><input className="modal-input" type="date" value={form.date||""} onChange={e=>updateForm("date",e.target.value)}/></>); }
+    } else if (modal==="addTask") { title="Add Task"; onSave=addTask; content=(<><Field label="Description"><input className="modal-input" placeholder="e.g. Annotate chapter 3" value={form.text||""} onChange={e=>updateForm("text",e.target.value)}/></Field><Field label="Subject"><SubjectSelect/></Field></>); }
+    else if (modal==="addDeadline") { title="Add Deadline"; onSave=addDeadline; content=(<><Field label="Title"><input className="modal-input" placeholder="e.g. Essay draft" value={form.title||""} onChange={e=>updateForm("title",e.target.value)}/></Field><Field label="Subject"><SubjectSelect/></Field><Field label="Due date"><input className="modal-input" type="date" value={form.date||""} onChange={e=>updateForm("date",e.target.value)}/></Field></>); }
+    else if (modal==="addExam") { title="Add Exam"; onSave=addExam; content=(<><Field label="Exam name"><input className="modal-input" placeholder="e.g. Paper 1" value={form.name||""} onChange={e=>updateForm("name",e.target.value)}/></Field><Field label="Subject"><SubjectSelect/></Field><Field label="Exam board"><select className="modal-input" value={form.board||""} onChange={e=>updateForm("board",e.target.value)}><option value="">Select board</option>{EXAM_BOARDS.map(b=><option key={b} value={b}>{b}</option>)}</select></Field><Field label="Date"><input className="modal-input" type="date" value={form.date||""} onChange={e=>updateForm("date",e.target.value)}/></Field></>); }
     else if (modal==="examActions") {
       title="Add to Exams";
       showSave=false;
@@ -1885,10 +1892,10 @@ export default function Markd() {
         {calendarSyncError && <div className="calendar-sync-error">{calendarSyncError}</div>}
       </>);
     }
-    else if (modal==="addPaper") { title="Add Past Paper"; onSave=addPaper; content=(<><SubjectSelect/><input className="modal-input" placeholder="Paper title" value={form.title||""} onChange={e=>updateForm("title",e.target.value)}/><input className="modal-input" placeholder="Year (e.g. 2024)" value={form.year||""} onChange={e=>updateForm("year",e.target.value)}/><input className="modal-input" placeholder="Paper number" value={form.paper||""} onChange={e=>updateForm("paper",e.target.value)}/><div style={{display:"flex",gap:8}}><input className="modal-input" placeholder="Marks scored" type="number" value={form.scored||""} onChange={e=>updateForm("scored",e.target.value)} style={{flex:1}}/><input className="modal-input" placeholder="Total marks" type="number" value={form.total||""} onChange={e=>updateForm("total",e.target.value)} style={{flex:1}}/></div></>); }
-    else if (modal==="addGoal") { title="Add Goal"; onSave=addGoal; content=(<><input className="modal-input" placeholder="Goal description" value={form.text||""} onChange={e=>updateForm("text",e.target.value)}/><select className="modal-input" value={form.horizon||"3 months"} onChange={e=>updateForm("horizon",e.target.value)}>{HORIZONS.map(h=><option key={h} value={h}>{h}</option>)}</select><select className="modal-input" value={form.subjectId||""} onChange={e=>updateForm("subjectId",e.target.value)}><option value="">No subject (optional)</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></>); }
-    else if (modal==="addPortfolio") { title="Add Portfolio Entry"; onSave=addPortfolio; content=(<><input className="modal-input" placeholder="Title" value={form.title||""} onChange={e=>updateForm("title",e.target.value)}/><textarea className="modal-input modal-textarea" placeholder="Description" value={form.desc||""} onChange={e=>updateForm("desc",e.target.value)}/><select className="modal-input" value={form.type||"Project"} onChange={e=>updateForm("type",e.target.value)}>{PORTFOLIO_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select><SubjectSelect/><input className="modal-input" placeholder="Tags (comma-separated)" value={form.tags||""} onChange={e=>updateForm("tags",e.target.value)}/></>); }
-    else if (modal==="addActivity") { title="Add Activity"; onSave=addActivity; content=(<><input className="modal-input" placeholder="Activity name (e.g. Debate Club)" value={form.name||""} onChange={e=>updateForm("name",e.target.value)}/><input className="modal-input" placeholder="Organisation / Team name" value={form.organisation||""} onChange={e=>updateForm("organisation",e.target.value)}/><input className="modal-input" placeholder="Your role" value={form.role||""} onChange={e=>updateForm("role",e.target.value)}/><textarea className="modal-input modal-textarea" placeholder="Description" value={form.desc||""} onChange={e=>updateForm("desc",e.target.value)}/><input className="modal-input" type="number" placeholder="Hours per week" value={form.hoursPerWeek||""} onChange={e=>updateForm("hoursPerWeek",e.target.value)}/><textarea className="modal-input modal-textarea" placeholder="Achievements (one per line)" value={form.achievements||""} onChange={e=>updateForm("achievements",e.target.value)}/><input className="modal-input" placeholder="Tags (comma-separated)" value={form.tags||""} onChange={e=>updateForm("tags",e.target.value)}/><div className="colour-swatches">{PALETTE.map(c=>(<button key={c} className={`swatch ${(form.colour||PALETTE[0])===c?"active":""}`} style={{background:c}} onClick={()=>updateForm("colour",c)}/>))}</div></>); }
+    else if (modal==="addPaper") { title="Add Past Paper"; onSave=addPaper; content=(<><Field label="Subject"><SubjectSelect/></Field><Field label="Paper title"><input className="modal-input" placeholder="e.g. November Mock" value={form.title||""} onChange={e=>updateForm("title",e.target.value)}/></Field><div style={{display:"flex",gap:8}}><Field label="Year" style={{flex:1}}><input className="modal-input" placeholder="e.g. 2024" value={form.year||""} onChange={e=>updateForm("year",e.target.value)}/></Field><Field label="Paper no." style={{flex:1}}><input className="modal-input" placeholder="e.g. 1" value={form.paper||""} onChange={e=>updateForm("paper",e.target.value)}/></Field></div><Field label="Score"><div style={{display:"flex",gap:8}}><input className="modal-input" placeholder="Marks scored" type="number" value={form.scored||""} onChange={e=>updateForm("scored",e.target.value)} style={{flex:1}}/><input className="modal-input" placeholder="Total marks" type="number" value={form.total||""} onChange={e=>updateForm("total",e.target.value)} style={{flex:1}}/></div></Field></>); }
+    else if (modal==="addGoal") { title="Add Goal"; onSave=addGoal; content=(<><Field label="Goal"><input className="modal-input" placeholder="e.g. Push average above 80%" value={form.text||""} onChange={e=>updateForm("text",e.target.value)}/></Field><Field label="Timeframe"><select className="modal-input" value={form.horizon||"3 months"} onChange={e=>updateForm("horizon",e.target.value)}>{HORIZONS.map(h=><option key={h} value={h}>{h}</option>)}</select></Field><Field label="Subject (optional)"><select className="modal-input" value={form.subjectId||""} onChange={e=>updateForm("subjectId",e.target.value)}><option value="">No subject</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></Field></>); }
+    else if (modal==="addPortfolio") { title="Add Portfolio Entry"; onSave=addPortfolio; content=(<><Field label="Title"><input className="modal-input" placeholder="e.g. Science fair project" value={form.title||""} onChange={e=>updateForm("title",e.target.value)}/></Field><Field label="Description"><textarea className="modal-input modal-textarea" placeholder="What did you do and what did you learn?" value={form.desc||""} onChange={e=>updateForm("desc",e.target.value)}/></Field><Field label="Type"><select className="modal-input" value={form.type||"Project"} onChange={e=>updateForm("type",e.target.value)}>{PORTFOLIO_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select></Field><Field label="Subject"><SubjectSelect/></Field><Field label="Tags (comma-separated)"><input className="modal-input" placeholder="e.g. Research, Teamwork" value={form.tags||""} onChange={e=>updateForm("tags",e.target.value)}/></Field></>); }
+    else if (modal==="addActivity") { title="Add Activity"; onSave=addActivity; content=(<><Field label="Activity name"><input className="modal-input" placeholder="e.g. Debate Club" value={form.name||""} onChange={e=>updateForm("name",e.target.value)}/></Field><Field label="Organisation"><input className="modal-input" placeholder="e.g. School / External team" value={form.organisation||""} onChange={e=>updateForm("organisation",e.target.value)}/></Field><Field label="Your role"><input className="modal-input" placeholder="e.g. Team Captain" value={form.role||""} onChange={e=>updateForm("role",e.target.value)}/></Field><Field label="Description"><textarea className="modal-input modal-textarea" placeholder="What do you do in this activity?" value={form.desc||""} onChange={e=>updateForm("desc",e.target.value)}/></Field><Field label="Hours per week"><input className="modal-input" type="number" placeholder="e.g. 2" value={form.hoursPerWeek||""} onChange={e=>updateForm("hoursPerWeek",e.target.value)}/></Field><Field label="Achievements (one per line)"><textarea className="modal-input modal-textarea" placeholder="e.g. Won regional championship" value={form.achievements||""} onChange={e=>updateForm("achievements",e.target.value)}/></Field><Field label="Tags (comma-separated)"><input className="modal-input" placeholder="e.g. Leadership, Sport" value={form.tags||""} onChange={e=>updateForm("tags",e.target.value)}/></Field><Field label="Colour"><div className="colour-swatches">{PALETTE.map(c=>(<button key={c} className={`swatch ${(form.colour||PALETTE[0])===c?"active":""}`} style={{background:c}} onClick={()=>updateForm("colour",c)}/>))}</div></Field></>); }
 
     return (
       <div className="modal-overlay" onClick={()=>setModal(null)}>
@@ -2255,6 +2262,75 @@ export default function Markd() {
           *, *::before, *::after { animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; scroll-behavior:auto !important; }
           .page > * { opacity:1 !important; transform:none !important; }
         }
+
+        /* ── UI/UX Pro Max improvements ── */
+
+        /* §2 Touch: 44px minimum touch target for delete buttons */
+        .delete-btn { background:none; border:none; cursor:pointer; padding:0; opacity:0.45; transition:opacity 0.18s, background 0.18s; flex-shrink:0; width:36px; height:36px; min-width:36px; min-height:36px; display:flex; align-items:center; justify-content:center; border-radius:8px; margin:-2px; }
+        .delete-btn:hover { opacity:1; background:rgba(247,106,106,0.1); transform:none; }
+
+        /* §6 Typography: base 14px for readability */
+        .markd-app { font-size:14px; }
+        .list-item-title, .subject-card-name, .activity-event-title { font-size:14px; }
+        .list-item-sub, .subject-card-board, .exam-board, .exam-date, .activity-org, .activity-event-date, .activity-desc { font-size:12px; }
+        .page-title { font-size:26px; font-weight:800; letter-spacing:-0.5px; }
+
+        /* §7 Animation: reduce FAB bounce amplitude — motion should convey meaning */
+        @keyframes fabFloat { 0%,100% { transform:translateY(0); box-shadow:0 8px 20px rgba(124,106,247,0.32); } 50% { transform:translateY(-3px); box-shadow:0 14px 28px rgba(124,106,247,0.44); } }
+
+        /* §6 Typography: modal field labels */
+        .modal-field { display:flex; flex-direction:column; gap:5px; }
+        .field-label { font-size:10px; font-weight:600; color:var(--muted); letter-spacing:0.8px; text-transform:uppercase; padding-left:1px; }
+        .modal-body { gap:12px; }
+        .modal-input { font-size:14px; }
+        .modal-save { letter-spacing:0.2px; }
+
+        /* §3 Performance: custom scrollbars */
+        ::-webkit-scrollbar { width:3px; height:3px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:rgba(124,106,247,0.25); border-radius:2px; }
+        ::-webkit-scrollbar-thumb:hover { background:rgba(124,106,247,0.45); }
+
+        /* Card depth improvements */
+        .subject-card:hover { box-shadow:0 20px 40px rgba(0,0,0,0.22), 0 0 0 1px rgba(124,106,247,0.12); }
+        .list-item:hover { box-shadow:0 8px 20px rgba(0,0,0,0.16), 0 0 0 1px rgba(124,106,247,0.12); }
+        .exam-card:hover { box-shadow:0 18px 36px rgba(0,0,0,0.2), 0 0 0 1px rgba(124,106,247,0.12); }
+        .portfolio-card:hover { box-shadow:0 18px 36px rgba(0,0,0,0.2); }
+        .activity-card:hover { box-shadow:0 20px 40px rgba(0,0,0,0.22); }
+        .paper-card:hover { box-shadow:0 16px 32px rgba(0,0,0,0.18); }
+
+        /* Progress bar: smooth gradient fill */
+        .progress-fill { transition:width 0.55s cubic-bezier(.21,1,.29,1); }
+
+        /* Better focus states (§1 Accessibility) */
+        .modal-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(124,106,247,0.15); transform:none; }
+        .auth-input:focus { box-shadow:0 0 0 3px rgba(124,106,247,0.15); }
+
+        /* Stat card: slightly larger number */
+        .stat-num { font-size:30px; letter-spacing:-1px; }
+
+        /* Bottom nav: slightly taller for touch (§2) */
+        .nav-item { padding:8px 6px; min-width:56px; }
+
+        /* Better badge */
+        .badge { font-size:10px; letter-spacing:0.3px; font-weight:600; }
+
+        /* Sidebar active indicator */
+        .sidebar-item.active { border-right:2px solid var(--accent); }
+
+        /* Settings sheet scrollbar */
+        .settings-sheet { scrollbar-width:thin; }
+
+        /* Goal check transition */
+        .goal-check { transition:background 0.2s cubic-bezier(.21,1,.29,1), transform 0.2s cubic-bezier(.21,1,.29,1), border-color 0.2s; }
+        .goal-check.checked { box-shadow:0 0 0 3px rgba(124,106,247,0.15); }
+
+        /* Task check transition */
+        .task-check { transition:background 0.2s cubic-bezier(.21,1,.29,1), transform 0.2s cubic-bezier(.21,1,.29,1), border-color 0.2s; }
+        .task-check.checked { box-shadow:0 0 0 3px rgba(124,106,247,0.12); }
+
+        /* Light theme modal overlay */
+        .markd-app.light-theme .field-label { color:var(--muted); }
       `}</style>
 
       <div className={`markd-app ${theme==="light"?"light-theme":""}`}>

@@ -4298,6 +4298,251 @@ export default function Markd() {
         .activity-card:nth-child(2n)::after  { animation-delay: 0.8s; }
         .portfolio-card:nth-child(2n)::after { animation-delay: 1.8s; }
 
+        /* Richer surface motion across the planner and homescreen */
+        @keyframes surfaceFloat {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+          50% { transform: translate3d(0, -4px, 0) scale(1.01); }
+        }
+        @keyframes orbPulse {
+          0%, 100% { opacity: 0.28; transform: scale(1); }
+          50% { opacity: 0.42; transform: scale(1.14); }
+        }
+        @keyframes sheenDrift {
+          0% { transform: translateX(-135%) skewX(-18deg); opacity: 0; }
+          12% { opacity: 0.26; }
+          48% { opacity: 0.1; }
+          100% { transform: translateX(235%) skewX(-18deg); opacity: 0; }
+        }
+        @keyframes numberGlow {
+          0%, 100% { transform: translateY(0); text-shadow: 0 0 0 rgba(124,106,247,0); }
+          50% { transform: translateY(-1px); text-shadow: 0 0 16px rgba(124,106,247,0.16); }
+        }
+        @keyframes meterBreath {
+          0%, 100% { box-shadow: inset 0 0 0 rgba(124,106,247,0), 0 0 0 rgba(124,106,247,0); }
+          50% { box-shadow: inset 0 0 24px rgba(124,106,247,0.14), 0 0 20px rgba(124,106,247,0.08); }
+        }
+        @keyframes cardBorderShift {
+          0%, 100% { border-color: rgba(255,255,255,0.12); }
+          50% { border-color: rgba(124,106,247,0.28); }
+        }
+        .planner-card,
+        .quick-add-card,
+        .summary-card,
+        .insight-card,
+        .achievement-card,
+        .health-card,
+        .planner-summary-card,
+        .next-task-card,
+        .stat-card,
+        .subject-mini {
+          position: relative;
+          overflow: hidden;
+          isolation: isolate;
+        }
+        .planner-card::before,
+        .quick-add-card::before,
+        .summary-card::before,
+        .insight-card::before,
+        .achievement-card::before,
+        .health-card::before,
+        .planner-summary-card::before,
+        .next-task-card::before,
+        .stat-card::before,
+        .subject-mini::before {
+          content: "";
+          position: absolute;
+          width: 180px;
+          height: 180px;
+          border-radius: 999px;
+          top: -82px;
+          right: -72px;
+          background: radial-gradient(circle, rgba(124,106,247,0.2) 0%, rgba(106,247,196,0.08) 48%, transparent 72%);
+          pointer-events: none;
+          z-index: 0;
+          animation: orbPulse 7.6s ease-in-out infinite;
+        }
+        .planner-card::after,
+        .quick-add-card::after,
+        .summary-card::after,
+        .insight-card::after,
+        .achievement-card::after,
+        .health-card::after,
+        .planner-summary-card::after,
+        .next-task-card::after,
+        .stat-card::after,
+        .subject-mini::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(110deg, transparent 38%, rgba(255,255,255,0.11) 50%, transparent 62%);
+          transform: translateX(-135%) skewX(-18deg);
+          pointer-events: none;
+          opacity: 0;
+          z-index: 0;
+          animation: sheenDrift 8.8s ease-in-out infinite;
+        }
+        .planner-card > *,
+        .quick-add-card > *,
+        .summary-card > *,
+        .insight-card > *,
+        .achievement-card > *,
+        .health-card > *,
+        .planner-summary-card > *,
+        .next-task-card > *,
+        .stat-card > *,
+        .subject-mini > * {
+          position: relative;
+          z-index: 1;
+        }
+        .planner-card,
+        .summary-card,
+        .insight-card,
+        .next-task-card {
+          animation: surfaceFloat 7.2s ease-in-out infinite;
+        }
+        .planner-card { animation-delay: 0.2s; }
+        .summary-card:nth-child(1) { animation-delay: 0.4s; }
+        .summary-card:nth-child(2) { animation-delay: 0.9s; }
+        .summary-card:nth-child(3) { animation-delay: 1.4s; }
+        .insight-card { animation-delay: 0.6s; }
+        .next-task-card { animation-delay: 1.1s; }
+        .planner-summary-card:nth-child(1)::before,
+        .summary-card:nth-child(1)::before,
+        .stat-card:nth-child(1)::before,
+        .health-card:nth-child(1)::before {
+          background: radial-gradient(circle, rgba(247,162,106,0.2) 0%, rgba(124,106,247,0.08) 44%, transparent 72%);
+        }
+        .planner-summary-card:nth-child(2)::before,
+        .summary-card:nth-child(2)::before,
+        .stat-card:nth-child(2)::before,
+        .health-card:nth-child(2)::before {
+          background: radial-gradient(circle, rgba(106,247,196,0.18) 0%, rgba(124,106,247,0.08) 46%, transparent 72%);
+        }
+        .planner-summary-card:nth-child(3)::before,
+        .summary-card:nth-child(3)::before,
+        .stat-card:nth-child(3)::before,
+        .health-card:nth-child(3)::before {
+          background: radial-gradient(circle, rgba(124,106,247,0.22) 0%, rgba(247,162,106,0.08) 48%, transparent 72%);
+        }
+        .planner-summary-card,
+        .achievement-card,
+        .health-card,
+        .stat-card,
+        .subject-mini {
+          animation: cardBorderShift 5.8s ease-in-out infinite;
+        }
+        .planner-summary-card:nth-child(2),
+        .achievement-card:nth-child(2),
+        .health-card:nth-child(2),
+        .subject-mini:nth-child(2n) {
+          animation-delay: 0.9s;
+        }
+        .planner-summary-card:nth-child(3),
+        .achievement-card:nth-child(3),
+        .health-card:nth-child(3),
+        .subject-mini:nth-child(3n) {
+          animation-delay: 1.8s;
+        }
+        .achievement-card,
+        .health-card,
+        .stat-card,
+        .subject-mini {
+          transform-origin: center bottom;
+        }
+        .achievement-card:hover,
+        .health-card:hover,
+        .stat-card:hover,
+        .subject-mini:hover {
+          animation-play-state: paused;
+        }
+        .summary-card-main,
+        .planner-summary-value,
+        .health-card-score,
+        .next-task-name {
+          animation: numberGlow 4.4s ease-in-out infinite;
+        }
+        .stat-num {
+          animation: statPop 0.42s cubic-bezier(0.34,1.56,0.64,1) both, numberGlow 4.4s ease-in-out 0.42s infinite;
+        }
+        .stat-card:nth-child(1) .stat-num { animation-delay: 0ms, 420ms; }
+        .stat-card:nth-child(2) .stat-num { animation-delay: 60ms, 480ms; }
+        .stat-card:nth-child(3) .stat-num { animation-delay: 120ms, 540ms; }
+        .stat-card:nth-child(4) .stat-num { animation-delay: 180ms, 600ms; }
+        .next-exam-days {
+          animation: examNumberPulse 2.8s ease-in-out infinite, numberGlow 4.4s ease-in-out infinite;
+        }
+        .summary-card:nth-child(2) .progress-bar,
+        .planner-card .progress-bar,
+        .goals-overview .progress-bar,
+        .next-exam-progress {
+          animation: meterBreath 4.8s ease-in-out infinite;
+        }
+        .achievement-card {
+          box-shadow: 0 12px 28px rgba(0,0,0,0.12);
+        }
+        .achievement-card:nth-child(2n) {
+          transform: translateY(2px);
+        }
+        .achievement-card:nth-child(3n)::after,
+        .health-card:nth-child(3n)::after,
+        .subject-mini:nth-child(3n)::after {
+          animation-delay: 2.2s;
+        }
+        .achievement-card:nth-child(4n)::after,
+        .health-card:nth-child(4n)::after,
+        .subject-mini:nth-child(4n)::after {
+          animation-delay: 3.4s;
+        }
+        .insight-card::before {
+          width: 240px;
+          height: 240px;
+          top: -120px;
+          right: -90px;
+          background: radial-gradient(circle, rgba(247,162,106,0.24) 0%, rgba(124,106,247,0.12) 42%, transparent 72%);
+        }
+        .next-task-card::before {
+          width: 220px;
+          height: 220px;
+          top: -120px;
+          right: -90px;
+          background: radial-gradient(circle, rgba(124,106,247,0.26) 0%, rgba(106,247,196,0.12) 46%, transparent 72%);
+        }
+        .planner-card:hover::after,
+        .quick-add-card:hover::after,
+        .summary-card:hover::after,
+        .insight-card:hover::after,
+        .achievement-card:hover::after,
+        .health-card:hover::after,
+        .planner-summary-card:hover::after,
+        .next-task-card:hover::after,
+        .stat-card:hover::after,
+        .subject-mini:hover::after {
+          animation-duration: 5.2s;
+        }
+        @media (max-width: 767px) {
+          .planner-card,
+          .summary-card,
+          .insight-card,
+          .next-task-card {
+            animation-duration: 6.2s;
+          }
+          .planner-card::before,
+          .quick-add-card::before,
+          .summary-card::before,
+          .insight-card::before,
+          .achievement-card::before,
+          .health-card::before,
+          .planner-summary-card::before,
+          .next-task-card::before,
+          .stat-card::before,
+          .subject-mini::before {
+            width: 140px;
+            height: 140px;
+            top: -68px;
+            right: -54px;
+          }
+        }
+
         /* Modal save button ripple */
         .modal-save-btn { position: relative; overflow: hidden; }
         .modal-save-btn::after {

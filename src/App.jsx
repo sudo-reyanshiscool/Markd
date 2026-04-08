@@ -2746,8 +2746,10 @@ export default function Markd() {
     const totalDeadlines = deadlines.length;
     const tasksDone = tasks.filter(t=>t.done).length;
     const totalTasks = tasks.length;
-    const sortedExams = [...exams].sort((a,b)=>new Date(a.date)-new Date(b.date));
-    const nextExam = sortedExams[0];
+    const upcomingExams = [...exams]
+      .filter(exam => exam?.date && !Number.isNaN(new Date(exam.date).getTime()) && daysUntil(exam.date) >= 0)
+      .sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const nextExam = upcomingExams[0] || null;
     const sortedDeadlines = [...deadlines].sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,3);
     const recentTasks = tasks.slice(-4);
     const firstName = currentUser.name.split(" ")[0];
@@ -2802,12 +2804,23 @@ export default function Markd() {
               </div>
             </>
           )}
-          {nextExam && (
+          {nextExam ? (
             <div className="next-exam-card" data-present="exam-countdown" onClick={()=>setPage("exams")}>
               <div className="next-exam-label">Next Exam</div>
               <div className="next-exam-name">{nextExam.name}</div>
               <div className="next-exam-date">{fmtDate(nextExam.date)}</div>
               <div className="next-exam-days" style={{color:countdownColor(daysUntil(nextExam.date))}}>{daysUntil(nextExam.date)} days</div>
+            </div>
+          ) : (
+            <div className="next-exam-card" data-present="exam-countdown" onClick={()=>setPage("exams")}>
+              <div className="next-exam-label">Exam Countdown</div>
+              <div className="next-exam-name">No upcoming exams yet</div>
+              <div className="next-exam-date">
+                {exams.length > 0
+                  ? "Your logged exams are in the past. Add the next one to restart the countdown."
+                  : "Add your first exam and Markd will keep the countdown here."}
+              </div>
+              <div className="next-exam-days" style={{color:"var(--muted)", fontSize:"18px"}}>Open Exams</div>
             </div>
           )}
           <div className="section-header">

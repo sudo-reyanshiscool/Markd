@@ -320,6 +320,7 @@ const createEmptyAppData = () => ({
   deleted: [],
   theme: "dark",
   revisionMode: false,
+  healthIntroSeen: false,
   outlookCalendarUrl: "",
   calendarLastSync: null,
 });
@@ -338,6 +339,7 @@ const normaliseAppData = (appData = {}) => {
     deleted: Array.isArray(appData.deleted) ? appData.deleted : fallback.deleted,
     theme: appData.theme === "light" ? "light" : "dark",
     revisionMode: Boolean(appData.revisionMode),
+    healthIntroSeen: Boolean(appData.healthIntroSeen),
     outlookCalendarUrl: typeof appData.outlookCalendarUrl === "string" ? appData.outlookCalendarUrl : "",
     calendarLastSync:
       typeof appData.calendarLastSync === "string" || appData.calendarLastSync === null
@@ -655,6 +657,7 @@ const createDemoAppData = () => {
     ],
     theme: "dark",
     revisionMode: false,
+    healthIntroSeen: true,
     outlookCalendarUrl: "",
     calendarLastSync: null,
   };
@@ -967,6 +970,7 @@ export default function Markd() {
   const [recentlyDeleted, setRecentlyDeleted] = useState([]);
   const [theme, setTheme] = useState("dark");
   const [revisionMode, setRevisionMode] = useState(false);
+  const [healthIntroSeen, setHealthIntroSeen] = useState(false);
   const [outlookCalendarUrl, setOutlookCalendarUrl] = useState("");
   const [calendarLastSync, setCalendarLastSync] = useState(null);
   const [loadedUserId, setLoadedUserId] = useState(null);
@@ -1002,6 +1006,7 @@ export default function Markd() {
   const [quickTaskTopic, setQuickTaskTopic] = useState("");
   const [highlightedTaskId, setHighlightedTaskId] = useState(null);
   const [completionBurstId, setCompletionBurstId] = useState(null);
+  const [healthIntroOpen, setHealthIntroOpen] = useState(false);
 
   const resetPersistedState = () => {
     const empty = createEmptyAppData();
@@ -1016,6 +1021,7 @@ export default function Markd() {
     setRecentlyDeleted(empty.deleted);
     setTheme(empty.theme);
     setRevisionMode(empty.revisionMode);
+    setHealthIntroSeen(empty.healthIntroSeen);
     setOutlookCalendarUrl(empty.outlookCalendarUrl);
     setCalendarLastSync(empty.calendarLastSync);
     setCalendarInput("");
@@ -1035,6 +1041,7 @@ export default function Markd() {
     setRecentlyDeleted(next.deleted);
     setTheme(next.theme);
     setRevisionMode(next.revisionMode);
+    setHealthIntroSeen(next.healthIntroSeen);
     setOutlookCalendarUrl(next.outlookCalendarUrl);
     setCalendarLastSync(next.calendarLastSync);
     setCalendarInput(next.outlookCalendarUrl);
@@ -1052,6 +1059,7 @@ export default function Markd() {
     deleted: recentlyDeleted,
     theme,
     revisionMode,
+    healthIntroSeen,
     outlookCalendarUrl,
     calendarLastSync,
   });
@@ -1075,6 +1083,13 @@ export default function Markd() {
       setQuickTaskSubjectId("");
     }
   }, [quickTaskSubjectId, subjects]);
+
+  useEffect(() => {
+    if (!currentUser || demoMode || cloudHydrating || loadedUserId !== userId || healthIntroSeen || healthIntroOpen) {
+      return;
+    }
+    setHealthIntroOpen(true);
+  }, [cloudHydrating, currentUser, demoMode, healthIntroOpen, healthIntroSeen, loadedUserId, userId]);
 
   useEffect(() => {
     if (revisionMode && ["activities", "portfolio"].includes(page)) {
@@ -1248,6 +1263,7 @@ export default function Markd() {
     tasks,
     theme,
     revisionMode,
+    healthIntroSeen,
     outlookCalendarUrl,
     userId,
     authUser,
@@ -1269,6 +1285,7 @@ export default function Markd() {
     setCloudHydrating(false);
     setAiMessages([]);
     setSettingsOpen(false);
+    setHealthIntroOpen(false);
     setPage("home");
   };
 
@@ -1283,6 +1300,7 @@ export default function Markd() {
     resetPersistedState();
     setAiMessages([]);
     setSettingsOpen(false);
+    setHealthIntroOpen(false);
   };
 
   if (authInitialising) {
@@ -2036,7 +2054,13 @@ export default function Markd() {
               <div className="next-exam-days" style={{color:countdownColor(daysUntil(nextExam.date))}}>{daysUntil(nextExam.date)} days</div>
             </div>
           )}
-          <div className="section-header"><span>Subject health</span><button className="link-btn" onClick={()=>setPage("subjects")}>Open subjects <Icon d={icons.chevron} size={14}/></button></div>
+          <div className="section-header">
+            <span>Subject health</span>
+            <div style={{display:"flex", alignItems:"center", gap:10}}>
+              <button className="link-btn" onClick={()=>setHealthIntroOpen(true)}>How it works</button>
+              <button className="link-btn" onClick={()=>setPage("subjects")}>Open subjects <Icon d={icons.chevron} size={14}/></button>
+            </div>
+          </div>
           <div className="health-grid">
             {subjects.map(subject => {
               const health = getSubjectHealth(subject.id);
@@ -2327,6 +2351,44 @@ export default function Markd() {
             <button className="confirm-cancel" onClick={()=>setConfirmDialog(null)}>Cancel</button>
             <button className="confirm-delete" onClick={()=>{ confirmDialog.onConfirm(); setConfirmDialog(null); }}>Delete</button>
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  const dismissHealthIntro = () => {
+    setHealthIntroSeen(true);
+    setHealthIntroOpen(false);
+  };
+
+  const renderHealthIntroDialog = () => {
+    if (!healthIntroOpen) return null;
+    return (
+      <div className="modal-overlay" style={{zIndex:405}} onClick={dismissHealthIntro}>
+        <div className="health-intro-dialog" onClick={e=>e.stopPropagation()}>
+          <div className="health-intro-badge">Subject health</div>
+          <div className="health-intro-title">How your health score works</div>
+          <div className="health-intro-copy">
+            Each subject gets a score from 0 to 100 based on three things:
+          </div>
+          <div className="health-intro-list">
+            <div className="health-intro-item">
+              <span className="health-intro-weight">45%</span>
+              <span>Your average marks from logged past papers.</span>
+            </div>
+            <div className="health-intro-item">
+              <span className="health-intro-weight">30%</span>
+              <span>How many tasks for that subject you have completed.</span>
+            </div>
+            <div className="health-intro-item">
+              <span className="health-intro-weight">25%</span>
+              <span>How much deadline and exam pressure is coming up soon.</span>
+            </div>
+          </div>
+          <div className="health-intro-copy">
+            A higher score means you are on top of that subject. Close exams or deadlines pull the score down, and new subjects start from a balanced baseline instead of zero.
+          </div>
+          <button className="modal-save" onClick={dismissHealthIntro}>Got it</button>
         </div>
       </div>
     );
@@ -2810,6 +2872,13 @@ export default function Markd() {
         .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; display:flex; align-items:flex-end; justify-content:center; animation:fadeIn 0.2s ease; }
         @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
         .modal-sheet { width:100%; max-width:600px; background:var(--surface); border-radius:20px 20px 0 0; padding:12px 20px 28px; animation:slideUp 0.25s ease; }
+        .health-intro-dialog { width:calc(100% - 40px); max-width:440px; background:var(--surface); border:1px solid var(--border); border-radius:22px; padding:22px 20px 20px; box-shadow:0 24px 48px rgba(0,0,0,0.28); animation:scaleIn 0.2s ease; }
+        .health-intro-badge { display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px; background:rgba(124,106,247,0.12); color:var(--accent); font-size:10px; text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; }
+        .health-intro-title { font-family:'Syne',sans-serif; font-size:22px; font-weight:700; line-height:1.15; margin-bottom:10px; }
+        .health-intro-copy { color:var(--muted); font-size:12px; line-height:1.65; }
+        .health-intro-list { display:flex; flex-direction:column; gap:10px; margin:16px 0; }
+        .health-intro-item { display:flex; gap:12px; align-items:flex-start; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:12px 13px; }
+        .health-intro-weight { min-width:42px; font-family:'Syne',sans-serif; font-size:18px; font-weight:800; color:var(--accent3); line-height:1; }
         @keyframes slideUp { from { transform:translateY(100%); } to { transform:translateY(0); } }
         .modal-handle { width:36px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 16px; }
         .modal-title { font-family:'Syne',sans-serif; font-weight:700; font-size:18px; margin-bottom:16px; }
@@ -3352,6 +3421,7 @@ export default function Markd() {
         </nav>
 
         {renderModal()}
+        {renderHealthIntroDialog()}
         {renderAiPanel()}
         {renderSettingsPanel()}
         {renderConfirmDialog()}

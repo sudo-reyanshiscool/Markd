@@ -4395,16 +4395,21 @@ export default function Markd() {
           z-index: 1;
         }
         .planner-card,
+        .insight-card {
+          opacity: 1;
+          animation:
+            sectionReveal 0.58s cubic-bezier(.21,1,.29,1) both,
+            surfaceFloat 7.2s ease-in-out 0.58s infinite;
+        }
         .summary-card,
-        .insight-card,
         .next-task-card {
           animation: surfaceFloat 7.2s ease-in-out infinite;
         }
-        .planner-card { animation-delay: 0.2s; }
+        .planner-card { animation-delay: 0s, 0.78s; }
         .summary-card:nth-child(1) { animation-delay: 0.4s; }
         .summary-card:nth-child(2) { animation-delay: 0.9s; }
         .summary-card:nth-child(3) { animation-delay: 1.4s; }
-        .insight-card { animation-delay: 0.6s; }
+        .insight-card { animation-delay: 0s, 1.02s; }
         .next-task-card { animation-delay: 1.1s; }
         .planner-summary-card:nth-child(1)::before,
         .summary-card:nth-child(1)::before,

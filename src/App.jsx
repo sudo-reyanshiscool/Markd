@@ -2696,13 +2696,15 @@ export default function Markd() {
           <div className="modal-handle"/>
           <div className="ai-header"><div className="ai-header-left"><Icon d={icons.sparkle} size={18} color="var(--accent)"/><span className="ai-title">Study Assistant</span></div><button className="ai-close" onClick={()=>setAiOpen(false)}><Icon d={icons.x} size={18} color="var(--muted)"/></button></div>
           <div className="ai-messages">
-            {aiMessages.length===0&&(<div className="ai-welcome"><div className="ai-welcome-icon"><Icon d={icons.sparkle} size={28} color="var(--accent)"/></div><div className="ai-welcome-text">Hey {currentUser.name.split(" ")[0]}! Ask me anything about your subjects, revision planning, or upcoming exams.</div></div>)}
-            {aiMessages.map((m,i)=>(<div key={i} className={`ai-msg ${m.role}`}><div className={`ai-bubble ${m.role}`}>{m.content}</div></div>))}
-            {aiLoading&&(<div className="ai-msg assistant"><div className="ai-bubble assistant ai-typing"><span className="dot"/><span className="dot"/><span className="dot"/></div></div>)}
-          </div>
-          <div className="ai-input-row">
-            <input className="ai-input" placeholder="Ask me anything..." value={aiInput} onChange={e=>setAiInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") sendAiMessage(); }}/>
-            <button className="ai-send" onClick={sendAiMessage} disabled={aiLoading||!aiInput.trim()}><Icon d={icons.send} size={18} color={aiInput.trim()?"white":"var(--muted)"}/></button>
+            <div className="ai-welcome">
+              <div className="ai-welcome-icon"><Icon d={icons.sparkle} size={28} color="var(--accent)"/></div>
+              <div className="ai-welcome-text" style={{fontSize:"15px", color:"var(--text)", fontFamily:"'Syne',sans-serif", fontWeight:700}}>
+                AI is still under construction.
+              </div>
+              <div className="ai-welcome-text">
+                Coming soon.
+              </div>
+            </div>
           </div>
         </div>
       </div>

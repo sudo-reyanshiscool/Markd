@@ -1438,6 +1438,8 @@ export default function Markd() {
     return () => window.clearTimeout(timeoutId);
   }, [notificationToast]);
 
+  const todayKey = toDateKey();
+
   useEffect(() => {
     if (!notificationsEnabled || !isOnline || typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") {
       return;
@@ -1877,7 +1879,6 @@ export default function Markd() {
   const avgMark = (sId) => { const sp=papers.filter(p=>p.subjectId===sId); if(!sp.length) return null; return Math.round(sp.reduce((a,p)=>a+(p.scored/p.total)*100,0)/sp.length); };
   const subjectDeadlineCount = (sId) => deadlines.filter(d=>d.subjectId===sId).length;
   const subjectTaskProgress = (sId) => { const st=tasks.filter(t=>t.subjectId===sId); if(!st.length) return null; return { done:st.filter(t=>t.done).length, total:st.length }; };
-  const todayKey = toDateKey();
   const getTaskEstimateMinutes = (task) => sanitiseEstimate(task?.estimateMinutes) || estimateFromText(task?.text);
   const getUpcomingDaysForSubject = (subjectId) => {
     const subjectDeadlines = deadlines

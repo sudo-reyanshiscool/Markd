@@ -2750,6 +2750,10 @@ export default function Markd() {
       .filter(exam => exam?.date && !Number.isNaN(new Date(exam.date).getTime()) && daysUntil(exam.date) >= 0)
       .sort((a,b)=>new Date(a.date)-new Date(b.date));
     const nextExam = upcomingExams[0] || null;
+    const nextExamDays = nextExam ? daysUntil(nextExam.date) : null;
+    const nextExamAccent = nextExam ? countdownColor(nextExamDays) : "var(--accent)";
+    const nextExamProgress = nextExamDays === null ? 18 : clamp(100 - (Math.min(nextExamDays, 30) / 30) * 100, 16, 100);
+    const nextExamSubject = nextExam?.subjectId ? subName(nextExam.subjectId) : "";
     const sortedDeadlines = [...deadlines].sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,3);
     const recentTasks = tasks.slice(-4);
     const firstName = currentUser.name.split(" ")[0];
@@ -2805,22 +2809,52 @@ export default function Markd() {
             </>
           )}
           {nextExam ? (
-            <div className="next-exam-card" data-present="exam-countdown" onClick={()=>setPage("exams")}>
-              <div className="next-exam-label">Next Exam</div>
-              <div className="next-exam-name">{nextExam.name}</div>
-              <div className="next-exam-date">{fmtDate(nextExam.date)}</div>
-              <div className="next-exam-days" style={{color:countdownColor(daysUntil(nextExam.date))}}>{daysUntil(nextExam.date)} days</div>
+            <div className="next-exam-card" style={{"--exam-accent": nextExamAccent}} data-present="exam-countdown" onClick={()=>setPage("exams")}>
+              <div className="next-exam-orb" />
+              <div className="next-exam-top">
+                <div>
+                  <div className="next-exam-label">Next Exam</div>
+                  <div className="next-exam-name">{nextExam.name}</div>
+                  <div className="next-exam-date">{fmtDate(nextExam.date)}{nextExamSubject ? ` · ${nextExamSubject}` : ""}</div>
+                </div>
+                <div className="next-exam-count-wrap">
+                  <div className="next-exam-days">{nextExamDays}</div>
+                  <div className="next-exam-days-caption">days left</div>
+                </div>
+              </div>
+              <div className="next-exam-progress">
+                <div className="next-exam-progress-fill" style={{width:`${nextExamProgress}%`}} />
+              </div>
+              <div className="next-exam-meta-row">
+                <span className="next-exam-chip">{nextExam.board}</span>
+                {nextExamSubject && <span className="next-exam-chip">{nextExamSubject}</span>}
+                <span className="next-exam-chip accent">Open Exams</span>
+              </div>
             </div>
           ) : (
-            <div className="next-exam-card" data-present="exam-countdown" onClick={()=>setPage("exams")}>
-              <div className="next-exam-label">Exam Countdown</div>
-              <div className="next-exam-name">No upcoming exams yet</div>
-              <div className="next-exam-date">
-                {exams.length > 0
-                  ? "Your logged exams are in the past. Add the next one to restart the countdown."
-                  : "Add your first exam and Markd will keep the countdown here."}
+            <div className="next-exam-card" style={{"--exam-accent":"var(--accent)"}} data-present="exam-countdown" onClick={()=>setPage("exams")}>
+              <div className="next-exam-orb fallback" />
+              <div className="next-exam-top">
+                <div>
+                  <div className="next-exam-label">Exam Countdown</div>
+                  <div className="next-exam-name">No upcoming exams yet</div>
+                  <div className="next-exam-date">
+                    {exams.length > 0
+                      ? "Your logged exams are in the past. Add the next one to restart the countdown."
+                      : "Add your first exam and Markd will keep the countdown here."}
+                  </div>
+                </div>
+                <div className="next-exam-count-wrap">
+                  <div className="next-exam-days next-exam-days-empty">--</div>
+                  <div className="next-exam-days-caption">waiting</div>
+                </div>
               </div>
-              <div className="next-exam-days" style={{color:"var(--muted)", fontSize:"18px"}}>Open Exams</div>
+              <div className="next-exam-progress">
+                <div className="next-exam-progress-fill" style={{width:"22%"}} />
+              </div>
+              <div className="next-exam-meta-row">
+                <span className="next-exam-chip accent">Open Exams</span>
+              </div>
             </div>
           )}
           <div className="section-header">
@@ -3588,14 +3622,27 @@ export default function Markd() {
         .stat-card:active { transform:scale(0.97); }
         .stat-num { font-family:'Syne',sans-serif; font-weight:700; font-size:26px; color:var(--accent); }
         .stat-label { color:var(--muted); font-size:11px; margin-top:4px; }
-        .next-exam-card { position:relative; overflow:hidden; background:linear-gradient(135deg,var(--surface) 0%,var(--surface2) 100%); border:1px solid var(--border); border-radius:14px; padding:20px; margin-bottom:20px; cursor:pointer; transition:border-color 200ms var(--ease-out), transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out); }
+        .next-exam-card { position:relative; overflow:hidden; background:linear-gradient(135deg,var(--surface) 0%,var(--surface2) 100%); border:1px solid var(--border); border-radius:18px; padding:20px; margin-bottom:20px; cursor:pointer; transition:border-color 200ms var(--ease-out), transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out); }
         @media (hover:hover) and (pointer:fine) { .next-exam-card:hover { border-color:var(--accent); transform:translateY(-4px); box-shadow:0 18px 34px rgba(0,0,0,0.24); } }
         .next-exam-card:active { transform:scale(0.97); }
         .next-exam-card::after, .calendar-sync-card::after { content:""; position:absolute; top:-70%; left:-20%; width:34%; height:240%; background:linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); transform:translateX(-170%) rotate(14deg); animation:sheenSweep 6.8s ease-in-out infinite; pointer-events:none; }
+        .next-exam-card::before { content:""; position:absolute; inset:0; background:radial-gradient(circle at 84% 22%, color-mix(in srgb, var(--exam-accent) 20%, transparent) 0%, transparent 34%); pointer-events:none; }
+        .next-exam-top, .next-exam-progress, .next-exam-meta-row { position:relative; z-index:1; }
+        .next-exam-top { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; }
+        .next-exam-orb { position:absolute; top:-36px; right:-24px; width:124px; height:124px; border-radius:50%; background:radial-gradient(circle, color-mix(in srgb, var(--exam-accent) 38%, white) 0%, color-mix(in srgb, var(--exam-accent) 12%, transparent) 42%, transparent 72%); opacity:0.95; filter:blur(4px); animation:examOrbFloat 6.2s ease-in-out infinite; pointer-events:none; }
+        .next-exam-orb.fallback { width:110px; height:110px; opacity:0.7; }
         .next-exam-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; }
-        .next-exam-name { font-family:'Syne',sans-serif; font-weight:700; font-size:20px; }
-        .next-exam-date { color:var(--muted); margin-top:4px; font-size:12px; }
-        .next-exam-days { font-family:'Syne',sans-serif; font-weight:800; font-size:32px; margin-top:8px; }
+        .next-exam-name { font-family:'Syne',sans-serif; font-weight:700; font-size:22px; line-height:1.08; max-width:680px; }
+        .next-exam-date { color:var(--muted); margin-top:8px; font-size:12px; line-height:1.6; max-width:580px; }
+        .next-exam-count-wrap { min-width:110px; display:flex; flex-direction:column; align-items:flex-end; text-align:right; }
+        .next-exam-days { font-family:'Syne',sans-serif; font-weight:800; font-size:54px; line-height:0.9; color:var(--exam-accent); text-shadow:0 0 28px color-mix(in srgb, var(--exam-accent) 16%, transparent); animation:examNumberPulse 2.8s ease-in-out infinite; }
+        .next-exam-days-empty { letter-spacing:2px; }
+        .next-exam-days-caption { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1.2px; margin-top:8px; }
+        .next-exam-progress { height:8px; border-radius:999px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); overflow:hidden; margin-top:16px; }
+        .next-exam-progress-fill { height:100%; border-radius:999px; background:linear-gradient(90deg, color-mix(in srgb, var(--exam-accent) 76%, white), var(--exam-accent)); box-shadow:0 0 18px color-mix(in srgb, var(--exam-accent) 34%, transparent); animation:examProgressPulse 2.6s ease-in-out infinite; }
+        .next-exam-meta-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+        .next-exam-chip { display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); color:var(--muted); font-size:10px; letter-spacing:0.4px; text-transform:uppercase; }
+        .next-exam-chip.accent { color:var(--exam-accent); border-color:color-mix(in srgb, var(--exam-accent) 32%, rgba(255,255,255,0.08)); background:color-mix(in srgb, var(--exam-accent) 10%, rgba(255,255,255,0.04)); }
         .section-header { display:flex; justify-content:space-between; align-items:center; margin:20px 0 10px; font-family:'Syne',sans-serif; font-weight:600; font-size:15px; }
         .link-btn { background:none; border:none; color:var(--accent); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; display:flex; align-items:center; gap:4px; }
         .list-item { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:10px; transition:transform 180ms var(--ease-out), border-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out); }
@@ -3978,6 +4025,9 @@ export default function Markd() {
           .planner-summary-grid, .summary-grid, .achievement-grid { grid-template-columns:1fr; }
           .quick-add-grid { grid-template-columns:1fr; }
           .next-task-card { align-items:flex-start; flex-direction:column; }
+          .next-exam-top { flex-direction:column; align-items:flex-start; }
+          .next-exam-count-wrap { align-items:flex-start; text-align:left; min-width:0; }
+          .next-exam-days { font-size:42px; }
         }
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after { animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; scroll-behavior:auto !important; }
@@ -4207,10 +4257,22 @@ export default function Markd() {
 
         /* Next-exam-card breathing glow */
         @keyframes examGlow {
-          0%, 100% { box-shadow: 0 4px 20px rgba(124,106,247,0.18); }
-          50%       { box-shadow: 0 8px 32px rgba(124,106,247,0.38); }
+          0%, 100% { box-shadow: 0 8px 24px rgba(124,106,247,0.14); }
+          50%       { box-shadow: 0 14px 34px rgba(124,106,247,0.24); }
         }
         .next-exam-card { opacity:1; animation: examGlow 3s ease-in-out infinite; }
+        @keyframes examOrbFloat {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+          50% { transform: translate3d(-12px, 10px, 0) scale(1.08); }
+        }
+        @keyframes examNumberPulse {
+          0%, 100% { transform: translateY(0); filter: brightness(1); }
+          50% { transform: translateY(-2px); filter: brightness(1.08); }
+        }
+        @keyframes examProgressPulse {
+          0%, 100% { filter: brightness(1); }
+          50% { filter: brightness(1.12); }
+        }
 
         /* Card shimmer sweep */
         @keyframes glassSheen {

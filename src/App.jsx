@@ -273,6 +273,20 @@ const normaliseStudySession = (session = {}) => ({
   minutes: clamp(Number(session.minutes) || 0, 0, 240),
   completedAt: typeof session.completedAt === "string" ? session.completedAt : new Date().toISOString(),
 });
+const normaliseExam = (exam = {}) => ({
+  ...exam,
+  id: exam.id || uid(),
+  subjectId: exam.subjectId || null,
+  name: typeof exam.name === "string" ? exam.name : "",
+  board: typeof exam.board === "string" ? exam.board : "Other",
+  date: typeof exam.date === "string" ? exam.date : "",
+  description: typeof exam.description === "string" ? exam.description : "",
+  location: typeof exam.location === "string" ? exam.location : "",
+  outlookEventId: typeof exam.outlookEventId === "string" ? exam.outlookEventId : "",
+  syllabus: typeof exam.syllabus === "string" ? exam.syllabus : "",
+  syllabusSavedAt: typeof exam.syllabusSavedAt === "string" ? exam.syllabusSavedAt : null,
+  aiBreakdown: typeof exam.aiBreakdown === "string" ? exam.aiBreakdown : "",
+});
 const normaliseTask = (task = {}) => {
   const done = Boolean(task.done);
   return {
@@ -317,6 +331,14 @@ const buildGoal = (goal = {}) =>
     done: false,
     completedAt: null,
     ...goal,
+  });
+const buildExam = (exam = {}) =>
+  normaliseExam({
+    id: uid(),
+    syllabus: "",
+    syllabusSavedAt: null,
+    aiBreakdown: "",
+    ...exam,
   });
 const encodeSharePayload = (payload) => {
   try {
@@ -370,7 +392,7 @@ const normaliseAppData = (appData = {}) => {
     subjects: Array.isArray(appData.subjects) ? appData.subjects : fallback.subjects,
     tasks: Array.isArray(appData.tasks) ? appData.tasks.map(normaliseTask) : fallback.tasks,
     deadlines: Array.isArray(appData.deadlines) ? appData.deadlines : fallback.deadlines,
-    exams: Array.isArray(appData.exams) ? appData.exams : fallback.exams,
+    exams: Array.isArray(appData.exams) ? appData.exams.map(normaliseExam) : fallback.exams,
     papers: Array.isArray(appData.papers) ? appData.papers : fallback.papers,
     goals: Array.isArray(appData.goals) ? appData.goals.map(normaliseGoal) : fallback.goals,
     portfolio: Array.isArray(appData.portfolio) ? appData.portfolio : fallback.portfolio,
@@ -461,6 +483,7 @@ const Icon = ({ d, size=20, color="currentColor" }) => (
 const icons = {
   home: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10",
   book: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z",
+  layers: "M12 3l9 4.5-9 4.5-9-4.5L12 3z M3 12.5l9 4.5 9-4.5 M3 17.5l9 4.5 9-4.5",
   check: "M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
   calendar: "M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M16 2v4 M8 2v4 M3 10h18",
   clock: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 6v6l4 2",
@@ -489,6 +512,7 @@ const icons = {
 const NAV_ITEMS = [
   { key:"home", label:"Home", icon:icons.home },
   { key:"subjects", label:"Subjects", icon:icons.book },
+  { key:"syllabus", label:"Syllabus", icon:icons.layers },
   { key:"tasks", label:"Tasks", icon:icons.check },
   { key:"timeline", label:"Timeline", icon:icons.calendar },
   { key:"deadlines", label:"Deadlines", icon:icons.calendar },
@@ -696,13 +720,13 @@ const createDemoAppData = () => {
       { id: uid(), subjectId: spanishId, title: "Speaking recording upload", date: addDays(16) },
     ],
     exams: [
-      { id: uid(), subjectId: mathsId, name: "Maths Paper 1", board: "Edexcel", date: addDays(9) },
-      { id: uid(), subjectId: bioId, name: "Biology Mock", board: "AQA", date: addDays(15) },
-      { id: uid(), subjectId: englishId, name: "Poetry Comparison Test", board: "AQA", date: addDays(20) },
-      { id: uid(), subjectId: chemistryId, name: "Chemistry Paper 2", board: "AQA", date: addDays(22) },
-      { id: uid(), subjectId: computerScienceId, name: "OCR Algorithms Assessment", board: "OCR", date: addDays(27) },
-      { id: uid(), subjectId: historyId, name: "Elizabethan England Mock", board: "Edexcel", date: addDays(31) },
-      { id: uid(), subjectId: spanishId, name: "Spanish Listening Test", board: "AQA", date: addDays(35) },
+      buildExam({ subjectId: mathsId, name: "Maths Paper 1", board: "Edexcel", date: addDays(9), syllabus: "Number\n- Bounds and standard form\nAlgebra\n- Quadratics and algebraic fractions\nGeometry\n- Circle theorems and trigonometric graphs", syllabusSavedAt: new Date().toISOString() }),
+      buildExam({ subjectId: bioId, name: "Biology Mock", board: "AQA", date: addDays(15), syllabus: "Cell biology\n- Microscopy and transport\nOrganisation\n- Enzymes, digestion, circulation\nInfection and response\n- Vaccination and plant disease", syllabusSavedAt: new Date().toISOString() }),
+      buildExam({ subjectId: englishId, name: "Poetry Comparison Test", board: "AQA", date: addDays(20) }),
+      buildExam({ subjectId: chemistryId, name: "Chemistry Paper 2", board: "AQA", date: addDays(22) }),
+      buildExam({ subjectId: computerScienceId, name: "OCR Algorithms Assessment", board: "OCR", date: addDays(27) }),
+      buildExam({ subjectId: historyId, name: "Elizabethan England Mock", board: "Edexcel", date: addDays(31) }),
+      buildExam({ subjectId: spanishId, name: "Spanish Listening Test", board: "AQA", date: addDays(35) }),
     ],
     papers: [
       { id: uid(), subjectId: mathsId, title: "November Mock", year: "2025", paper: "1", scored: 67, total: 80, file: null },
@@ -2304,7 +2328,7 @@ export default function Markd() {
   };
 
   const fabAction = () => {
-    const map = { home:null,subjects:"addSubject",tasks:"addTask",deadlines:"addDeadline",exams:"examActions",papers:"addPaper",goals:"addGoal",portfolio:"addPortfolio",activities:"addActivity" };
+    const map = { home:null,subjects:"addSubject",syllabus:null,tasks:"addTask",deadlines:"addDeadline",exams:"examActions",papers:"addPaper",goals:"addGoal",portfolio:"addPortfolio",activities:"addActivity" };
     const m = map[page];
     if (m) openModal(m);
   };
@@ -2388,7 +2412,7 @@ export default function Markd() {
         .filter(t=>t.subjectId);
       if (newTasks.length>0) { setTasks(prev=>[...prev,...newTasks]); addSyncLog(`Added ${newTasks.length} task${newTasks.length>1?"s":""}`); }
       const existingTeamsExams = new Set(exams.filter(e=>e.teamsId).map(e=>e.teamsId));
-      const newExams = (data.exams||[]).filter(e=>e.date&&!existingTeamsExams.has(e.teamsId)).map(e=>({id:uid(),subjectId:subjectMap[e.className]||subjects[0]?.id,name:e.name,board:"Other",date:e.date,teamsId:e.teamsId}));
+      const newExams = (data.exams||[]).filter(e=>e.date&&!existingTeamsExams.has(e.teamsId)).map(e=>buildExam({subjectId:subjectMap[e.className]||subjects[0]?.id,name:e.name,board:"Other",date:e.date,teamsId:e.teamsId}));
       if (newExams.length>0) { setExams(prev=>[...prev,...newExams]); addSyncLog(`Added ${newExams.length} exam${newExams.length>1?"s":""}`); }
       const totalNew = newDeadlines.length+newTasks.length+newExams.length;
       if (totalNew===0) addSyncLog("Everything up to date");
@@ -2418,7 +2442,7 @@ export default function Markd() {
 
       const nextImportedExams = data.events.map(event => {
         const existing = exams.find(exam => exam.outlookEventId === event.id);
-        return {
+        return buildExam({
           id: existing?.id || uid(),
           subjectId: existing?.subjectId || inferSubjectIdFromTitle(event.title),
           name: event.title,
@@ -2427,7 +2451,10 @@ export default function Markd() {
           description: event.description || "",
           location: event.location || "",
           outlookEventId: event.id,
-        };
+          syllabus: existing?.syllabus || "",
+          syllabusSavedAt: existing?.syllabusSavedAt || null,
+          aiBreakdown: existing?.aiBreakdown || "",
+        });
       });
 
       setExams(prev => [...prev.filter(exam => !exam.outlookEventId), ...nextImportedExams]);
@@ -2490,6 +2517,24 @@ export default function Markd() {
     } finally { setAiLoading(false); }
   };
 
+  const saveExamSyllabus = () => {
+    const examId = form.examId || null;
+    if (!examId) return;
+    const syllabus = String(form.syllabus || "").trim();
+    setExams(currentExams =>
+      currentExams.map(exam =>
+        exam.id === examId
+          ? normaliseExam({
+              ...exam,
+              syllabus,
+              syllabusSavedAt: syllabus ? new Date().toISOString() : null,
+            })
+          : exam
+      )
+    );
+    setModal(null);
+  };
+
   // ─── Add handlers ───
   const addSubject = () => { if(!form.name) return; setSubjects(s=>[...s,{id:uid(),name:form.name,board:form.board||"AQA",target:form.target||"5",colour:form.colour||PALETTE[0]}]); setModal(null); };
   const addTask = () => {
@@ -2504,7 +2549,7 @@ export default function Markd() {
     setModal(null);
   };
   const addDeadline = () => { if(!form.title||!form.subjectId||!form.date) return; setDeadlines(d=>[...d,{id:uid(),subjectId:form.subjectId,title:form.title,date:form.date}]); setModal(null); };
-  const addExam = () => { if(!form.name||!form.subjectId||!form.date) return; setExams(e=>[...e,{id:uid(),subjectId:form.subjectId,name:form.name,board:form.board||sub(form.subjectId)?.board||"AQA",date:form.date}]); setModal(null); };
+  const addExam = () => { if(!form.name||!form.subjectId||!form.date) return; setExams(e=>[...e,buildExam({subjectId:form.subjectId,name:form.name,board:form.board||sub(form.subjectId)?.board||"AQA",date:form.date})]); setModal(null); };
   const addPaper = () => { if(!form.subjectId||!form.title||!form.scored||!form.total) return; setPapers(p=>[...p,{id:uid(),subjectId:form.subjectId,title:form.title,year:form.year||"",paper:form.paper||"",scored:Number(form.scored),total:Number(form.total),file:form.file||null}]); setModal(null); };
   const addGoal = () => { if(!form.text) return; setGoals(g=>[...g,buildGoal({text:form.text,horizon:form.horizon||"3 months",subjectId:form.subjectId||null,done:false})]); setModal(null); };
   const addPortfolio = () => { if(!form.title||!form.subjectId) return; setPortfolio(p=>[...p,{id:uid(),subjectId:form.subjectId,title:form.title,type:form.type||"Project",desc:form.desc||"",tags:(form.tags||"").split(",").map(t=>t.trim()).filter(Boolean)}]); setModal(null); };
@@ -3001,12 +3046,82 @@ export default function Markd() {
         <h2 className="page-title">Exams</h2>
         {exams.length === 0 ? <EmptyState icon={icons.clock} message="No exams yet. Tap + to add one manually or import your assessment calendar." action={()=>openModal("examActions")} actionLabel="Add to Exams"/> :
         sorted.map(ex => { const d=daysUntil(ex.date); return (
-          <div key={ex.id} className="exam-card" style={{borderLeft:`4px solid ${subColour(ex.subjectId)}`}}>
-            <div style={{flex:1}}><div className="exam-name">{ex.name}</div><div className="exam-board">{ex.board}</div><div className="exam-date">{fmtDate(ex.date)}</div></div>
+          <div key={ex.id} className="exam-card exam-card-clickable" style={{borderLeft:`4px solid ${subColour(ex.subjectId)}`}} onClick={()=>{ setForm({ examId: ex.id, syllabus: ex.syllabus || "" }); setModal("examSyllabus"); }}>
+            <div style={{flex:1}}>
+              <div className="exam-name">{ex.name}</div>
+              <div className="exam-board">{ex.board}</div>
+              <div className="exam-date">{fmtDate(ex.date)}</div>
+              {ex.syllabus?.trim() && <div className="exam-syllabus-pill">Syllabus saved</div>}
+            </div>
             <div className="exam-days" style={{color:countdownColor(d)}}>{d}<span className="exam-days-label">days</span></div>
             <DeleteBtn onClick={()=>deleteExam(ex.id)}/>
           </div>
         ); })}
+      </div>
+    );
+  };
+
+  const renderSyllabus = () => {
+    const subjectSyllabusGroups = subjects
+      .map(subject => ({
+        ...subject,
+        exams: exams
+          .filter(exam => exam.subjectId === subject.id)
+          .sort((a, b) => new Date(a.date) - new Date(b.date)),
+      }))
+      .filter(subject => subject.exams.length > 0);
+    const savedSyllabusCount = exams.filter(exam => exam.syllabus?.trim()).length;
+
+    return (
+      <div className="page">
+        <h2 className="page-title">Syllabus</h2>
+        <div className="planner-card syllabus-hero-card">
+          <div className="planner-head">
+            <div>
+              <div className="planner-eyebrow">Your subjects</div>
+              <div className="planner-title">Saved syllabus library</div>
+            </div>
+            <span className="task-topic-pill">{savedSyllabusCount} saved</span>
+          </div>
+          <div className="planner-sub">Open any exam to save its syllabus. This page keeps the syllabi for the subjects you are taking in one place so they are easy to find later.</div>
+        </div>
+        {subjectSyllabusGroups.length === 0 ? (
+          <EmptyState icon={icons.layers} message="No exam syllabi yet. Open an exam and save the syllabus to build your syllabus library." action={()=>setPage("exams")} actionLabel="Open Exams"/>
+        ) : (
+          subjectSyllabusGroups.map(subject => (
+            <div key={subject.id} className="syllabus-subject-card" style={{borderLeft:`4px solid ${subject.colour}`}}>
+              <div className="syllabus-subject-header">
+                <div>
+                  <div className="subject-card-name">{subject.name}</div>
+                  <div className="subject-card-board">{subject.board}</div>
+                </div>
+                <span className="task-time-pill">{subject.exams.filter(exam => exam.syllabus?.trim()).length}/{subject.exams.length} saved</span>
+              </div>
+              <div className="syllabus-exam-list">
+                {subject.exams.map(exam => (
+                  <button
+                    key={exam.id}
+                    className={`syllabus-exam-card ${exam.syllabus?.trim() ? "filled" : ""}`}
+                    onClick={()=>{ setForm({ examId: exam.id, syllabus: exam.syllabus || "" }); setModal("examSyllabus"); }}
+                  >
+                    <div className="syllabus-exam-top">
+                      <div>
+                        <div className="syllabus-exam-name">{exam.name}</div>
+                        <div className="syllabus-exam-meta">{fmtDate(exam.date)} · {exam.board}</div>
+                      </div>
+                      <span className={`badge ${exam.syllabus?.trim() ? "syllabus-badge-filled" : ""}`} style={{background:(exam.syllabus?.trim() ? "var(--accent3)" : "var(--accent2)")+"22", color:exam.syllabus?.trim() ? "var(--accent3)" : "var(--accent2)"}}>
+                        {exam.syllabus?.trim() ? "Saved" : "Add syllabus"}
+                      </span>
+                    </div>
+                    <div className="syllabus-preview">
+                      {exam.syllabus?.trim() ? exam.syllabus.trim() : "No syllabus saved yet for this exam."}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     );
   };
@@ -3417,6 +3532,7 @@ export default function Markd() {
     if (!modal) return null;
     const SubjectSelect = () => (<select className="modal-input" value={form.subjectId||""} onChange={e=>updateForm("subjectId",e.target.value)}><option value="">Select subject</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>);
     const calendarSyncLabel = calendarLastSync ? new Date(calendarLastSync).toLocaleString("en-GB",{ day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : null;
+    const activeExam = form.examId ? exams.find(exam => exam.id === form.examId) : null;
     let title="", content=null, onSave=null, saveLabel="Save", showSave=true;
 
     if (modal==="addSubject") {
@@ -3481,6 +3597,37 @@ export default function Markd() {
     }
     else if (modal==="addDeadline") { title="Add Deadline"; onSave=addDeadline; content=(<><Field label="Title"><input className="modal-input" placeholder="e.g. Essay draft" value={form.title||""} onChange={e=>updateForm("title",e.target.value)}/></Field><Field label="Subject"><SubjectSelect/></Field><Field label="Due date"><input className="modal-input" type="date" value={form.date||""} onChange={e=>updateForm("date",e.target.value)}/></Field></>); }
     else if (modal==="addExam") { title="Add Exam"; onSave=addExam; content=(<><Field label="Exam name"><input className="modal-input" placeholder="e.g. Paper 1" value={form.name||""} onChange={e=>updateForm("name",e.target.value)}/></Field><Field label="Subject"><SubjectSelect/></Field><Field label="Exam board"><select className="modal-input" value={form.board||""} onChange={e=>updateForm("board",e.target.value)}><option value="">Select board</option>{EXAM_BOARDS.map(b=><option key={b} value={b}>{b}</option>)}</select></Field><Field label="Date"><input className="modal-input" type="date" value={form.date||""} onChange={e=>updateForm("date",e.target.value)}/></Field></>); }
+    else if (modal==="examSyllabus") {
+      title=activeExam ? activeExam.name : "Exam syllabus";
+      onSave=saveExamSyllabus;
+      saveLabel="Save syllabus";
+      content=(<>
+        {activeExam && (
+          <div className="exam-syllabus-header-card" style={{borderLeft:`4px solid ${subColour(activeExam.subjectId)}`}}>
+            <div className="exam-syllabus-header-top">
+              <div>
+                <div className="exam-syllabus-subject">{subName(activeExam.subjectId)}</div>
+                <div className="exam-syllabus-meta">{activeExam.board} · {fmtDate(activeExam.date)}</div>
+              </div>
+              {activeExam.syllabus?.trim() && <span className="badge" style={{background:"var(--accent3)22", color:"var(--accent3)"}}>Saved</span>}
+            </div>
+            <div className="exam-syllabus-helper">Paste the topics, units, texts, or bullet points for this exam. Markd will keep it attached to this exam so it stays easy to open later.</div>
+          </div>
+        )}
+        <Field label="Exam syllabus">
+          <textarea
+            className="modal-input modal-textarea exam-syllabus-input"
+            placeholder="Paste the full syllabus here..."
+            value={form.syllabus||""}
+            onChange={e=>updateForm("syllabus",e.target.value)}
+          />
+        </Field>
+        <div className="exam-ai-placeholder">
+          <div className="exam-ai-placeholder-title">AI Breakdown is Still Under Construction!</div>
+          <div className="exam-ai-placeholder-copy">Soon this will turn your full syllabus into a cleaner topic-by-topic revision breakdown. For now, you can save the raw syllabus here and reopen it from Exams or the new Syllabus tab.</div>
+        </div>
+      </>);
+    }
     else if (modal==="examActions") {
       title="Add to Exams";
       showSave=false;
@@ -3532,7 +3679,7 @@ export default function Markd() {
   // ═══════════════════════════════════
   // MAIN RENDER
   // ═══════════════════════════════════
-  const pages = { home:renderHome, subjects:renderSubjects, tasks:renderTasks, deadlines:renderDeadlines, timeline:renderTimeline, exams:renderExams, papers:renderPapers, goals:renderGoals, activities:renderActivities, portfolio:renderPortfolio };
+  const pages = { home:renderHome, subjects:renderSubjects, syllabus:renderSyllabus, tasks:renderTasks, deadlines:renderDeadlines, timeline:renderTimeline, exams:renderExams, papers:renderPapers, goals:renderGoals, activities:renderActivities, portfolio:renderPortfolio };
   const visibleNavItems = revisionMode ? NAV_ITEMS.filter(item => !["activities", "portfolio"].includes(item.key)) : NAV_ITEMS;
 
   return (
@@ -3682,13 +3829,36 @@ export default function Markd() {
         .group-section { margin-bottom:18px; }
         .group-label { font-family:'Syne',sans-serif; font-weight:600; font-size:14px; margin-bottom:8px; padding-left:2px; }
         .exam-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:10px; display:flex; align-items:center; gap:12px; transition:transform 200ms var(--ease-out), border-color 200ms var(--ease-out), box-shadow 200ms var(--ease-out); }
+        .exam-card-clickable { cursor:pointer; }
         @media (hover:hover) and (pointer:fine) { .exam-card:hover { transform:translateY(-4px); border-color:rgba(124,106,247,0.28); box-shadow:0 16px 28px rgba(0,0,0,0.15); } }
         .exam-card:active { transform:scale(0.97); }
         .exam-name { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; }
         .exam-board { font-size:11px; color:var(--muted); margin-top:2px; }
         .exam-date { font-size:11px; color:var(--muted); margin-top:4px; }
+        .exam-syllabus-pill { display:inline-flex; align-items:center; margin-top:8px; font-size:10px; padding:4px 8px; border-radius:999px; background:rgba(106,247,196,0.12); color:var(--accent3); border:1px solid rgba(106,247,196,0.18); }
         .exam-days { font-family:'Syne',sans-serif; font-weight:800; font-size:34px; text-align:center; line-height:1; }
         .exam-days-label { display:block; font-size:10px; font-weight:400; color:var(--muted); margin-top:2px; }
+        .syllabus-hero-card { margin-bottom:16px; }
+        .syllabus-subject-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px; margin-bottom:14px; transition:transform 200ms var(--ease-out), border-color 200ms var(--ease-out), box-shadow 200ms var(--ease-out); }
+        @media (hover:hover) and (pointer:fine) { .syllabus-subject-card:hover { transform:translateY(-4px); border-color:rgba(124,106,247,0.28); box-shadow:0 16px 28px rgba(0,0,0,0.16); } }
+        .syllabus-subject-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
+        .syllabus-exam-list { display:flex; flex-direction:column; gap:10px; }
+        .syllabus-exam-card { width:100%; text-align:left; background:var(--surface2); border:1px solid var(--border); border-radius:14px; padding:14px; color:var(--text); cursor:pointer; transition:transform 180ms var(--ease-out), border-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out); }
+        .syllabus-exam-card.filled { border-color:rgba(106,247,196,0.2); }
+        @media (hover:hover) and (pointer:fine) { .syllabus-exam-card:hover { transform:translateY(-2px); border-color:rgba(124,106,247,0.24); box-shadow:0 12px 22px rgba(0,0,0,0.12); } }
+        .syllabus-exam-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+        .syllabus-exam-name { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; }
+        .syllabus-exam-meta { font-size:11px; color:var(--muted); margin-top:4px; }
+        .syllabus-preview { font-size:12px; color:var(--muted); line-height:1.6; white-space:pre-wrap; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+        .exam-syllabus-header-card { background:var(--surface2); border:1px solid var(--border); border-radius:14px; padding:14px; }
+        .exam-syllabus-header-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+        .exam-syllabus-subject { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; }
+        .exam-syllabus-meta { font-size:11px; color:var(--muted); margin-top:4px; }
+        .exam-syllabus-helper { font-size:11px; color:var(--muted); line-height:1.6; }
+        .exam-syllabus-input { min-height:220px; white-space:pre-wrap; }
+        .exam-ai-placeholder { background:linear-gradient(135deg, rgba(124,106,247,0.1), rgba(247,162,106,0.08)); border:1px solid rgba(124,106,247,0.18); border-radius:14px; padding:14px; }
+        .exam-ai-placeholder-title { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; margin-bottom:8px; }
+        .exam-ai-placeholder-copy { font-size:11px; color:var(--muted); line-height:1.6; }
         .calendar-sync-card { position:relative; overflow:hidden; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:16px; transition:transform 200ms var(--ease-out), border-color 200ms var(--ease-out), box-shadow 200ms var(--ease-out); }
         @media (hover:hover) and (pointer:fine) { .calendar-sync-card:hover { transform:translateY(-4px); border-color:rgba(124,106,247,0.35); box-shadow:0 18px 34px rgba(0,0,0,0.2); } }
         .calendar-sync-title { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; margin-bottom:6px; }

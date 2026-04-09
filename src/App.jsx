@@ -1248,6 +1248,7 @@ export default function Markd() {
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [resetStep, setResetStep] = useState(0);
   const [paperTab, setPaperTab] = useState("my");
+  const [syllabusTab, setSyllabusTab] = useState("library");
   const [goalTab, setGoalTab] = useState("goals");
   const [goalHorizon, setGoalHorizon] = useState("3 months");
   const [aiOpen, setAiOpen] = useState(false);
@@ -1283,6 +1284,8 @@ export default function Markd() {
   const [sessionPaused, setSessionPaused] = useState(false);
   const [sessionSecondsLeft, setSessionSecondsLeft] = useState(25 * 60);
   const [sessionPresetMinutes, setSessionPresetMinutes] = useState(25);
+  const [syllabusUploadExamId, setSyllabusUploadExamId] = useState("");
+  const [syllabusUploadNotice, setSyllabusUploadNotice] = useState(null);
   const [sessionSubjectId, setSessionSubjectId] = useState("");
   const [sessionTaskId, setSessionTaskId] = useState("");
   const [notificationToast, setNotificationToast] = useState("");
@@ -2535,6 +2538,64 @@ export default function Markd() {
     setModal(null);
   };
 
+  const handleSyllabusUpload = async (event) => {
+    const file = event.target.files?.[0] || null;
+    const examId = syllabusUploadExamId || "";
+    if (!file) return;
+
+    if (!examId) {
+      setSyllabusUploadNotice({ tone: "error", message: "Choose which exam this syllabus belongs to first." });
+      event.target.value = "";
+      return;
+    }
+
+    const fileName = file.name || "syllabus";
+    const isTextFile =
+      file.type.startsWith("text/") ||
+      /\.(txt|md|markdown|csv|text)$/i.test(fileName);
+
+    if (!isTextFile) {
+      setSyllabusUploadNotice({
+        tone: "error",
+        message: "This uploader supports text syllabus files for now. For PDFs, paste the syllabus into the exam popup instead.",
+      });
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      const syllabus = String(await file.text()).trim();
+      if (!syllabus) {
+        setSyllabusUploadNotice({ tone: "error", message: "That file was empty. Try another syllabus file." });
+        event.target.value = "";
+        return;
+      }
+
+      let savedExamName = "exam";
+      setExams(currentExams =>
+        currentExams.map(exam => {
+          if (exam.id !== examId) return exam;
+          savedExamName = exam.name;
+          return normaliseExam({
+            ...exam,
+            syllabus,
+            syllabusSavedAt: new Date().toISOString(),
+          });
+        })
+      );
+
+      setSyllabusUploadNotice({ tone: "success", message: `Uploaded syllabus for ${savedExamName}.` });
+      setSyllabusTab("library");
+    } catch (error) {
+      setSyllabusUploadNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Could not read that syllabus file.",
+      });
+    } finally {
+      event.target.value = "";
+    }
+  };
+
   // ─── Add handlers ───
   const addSubject = () => { if(!form.name) return; setSubjects(s=>[...s,{id:uid(),name:form.name,board:form.board||"AQA",target:form.target||"5",colour:form.colour||PALETTE[0]}]); setModal(null); };
   const addTask = () => {
@@ -3062,15 +3123,16 @@ export default function Markd() {
   };
 
   const renderSyllabus = () => {
+    const sortedExams = [...exams].sort((a, b) => new Date(a.date) - new Date(b.date));
     const subjectSyllabusGroups = subjects
       .map(subject => ({
         ...subject,
-        exams: exams
+        exams: sortedExams
           .filter(exam => exam.subjectId === subject.id)
-          .sort((a, b) => new Date(a.date) - new Date(b.date)),
       }))
       .filter(subject => subject.exams.length > 0);
     const savedSyllabusCount = exams.filter(exam => exam.syllabus?.trim()).length;
+    const syllabusUploadExam = sortedExams.find(exam => exam.id === syllabusUploadExamId) || null;
 
     return (
       <div className="page">
@@ -3085,42 +3147,98 @@ export default function Markd() {
           </div>
           <div className="planner-sub">Open any exam to save its syllabus. This page keeps the syllabi for the subjects you are taking in one place so they are easy to find later.</div>
         </div>
-        {subjectSyllabusGroups.length === 0 ? (
-          <EmptyState icon={icons.layers} message="No exam syllabi yet. Open an exam and save the syllabus to build your syllabus library." action={()=>setPage("exams")} actionLabel="Open Exams"/>
-        ) : (
-          subjectSyllabusGroups.map(subject => (
-            <div key={subject.id} className="syllabus-subject-card" style={{borderLeft:`4px solid ${subject.colour}`}}>
-              <div className="syllabus-subject-header">
-                <div>
-                  <div className="subject-card-name">{subject.name}</div>
-                  <div className="subject-card-board">{subject.board}</div>
+        <div className="tab-row syllabus-tab-row">
+          <button className={`tab-btn ${syllabusTab==="library"?"active":""}`} onClick={()=>{ setSyllabusTab("library"); setSyllabusUploadNotice(null); }}>Library</button>
+          <button className={`tab-btn ${syllabusTab==="upload"?"active":""}`} onClick={()=>{ setSyllabusTab("upload"); setSyllabusUploadNotice(null); }}>Upload</button>
+        </div>
+        {syllabusTab === "library" ? (
+          subjectSyllabusGroups.length === 0 ? (
+            <EmptyState icon={icons.layers} message="No exam syllabi yet. Open an exam and save the syllabus to build your syllabus library." action={()=>setPage("exams")} actionLabel="Open Exams"/>
+          ) : (
+            subjectSyllabusGroups.map(subject => (
+              <div key={subject.id} className="syllabus-subject-card" style={{borderLeft:`4px solid ${subject.colour}`}}>
+                <div className="syllabus-subject-header">
+                  <div>
+                    <div className="subject-card-name">{subject.name}</div>
+                    <div className="subject-card-board">{subject.board}</div>
+                  </div>
+                  <span className="task-time-pill">{subject.exams.filter(exam => exam.syllabus?.trim()).length}/{subject.exams.length} saved</span>
                 </div>
-                <span className="task-time-pill">{subject.exams.filter(exam => exam.syllabus?.trim()).length}/{subject.exams.length} saved</span>
-              </div>
-              <div className="syllabus-exam-list">
-                {subject.exams.map(exam => (
-                  <button
-                    key={exam.id}
-                    className={`syllabus-exam-card ${exam.syllabus?.trim() ? "filled" : ""}`}
-                    onClick={()=>{ setForm({ examId: exam.id, syllabus: exam.syllabus || "" }); setModal("examSyllabus"); }}
-                  >
-                    <div className="syllabus-exam-top">
-                      <div>
-                        <div className="syllabus-exam-name">{exam.name}</div>
-                        <div className="syllabus-exam-meta">{fmtDate(exam.date)} · {exam.board}</div>
+                <div className="syllabus-exam-list">
+                  {subject.exams.map(exam => (
+                    <button
+                      key={exam.id}
+                      className={`syllabus-exam-card ${exam.syllabus?.trim() ? "filled" : ""}`}
+                      onClick={()=>{ setForm({ examId: exam.id, syllabus: exam.syllabus || "" }); setModal("examSyllabus"); }}
+                    >
+                      <div className="syllabus-exam-top">
+                        <div>
+                          <div className="syllabus-exam-name">{exam.name}</div>
+                          <div className="syllabus-exam-meta">{fmtDate(exam.date)} · {exam.board}</div>
+                        </div>
+                        <span className={`badge ${exam.syllabus?.trim() ? "syllabus-badge-filled" : ""}`} style={{background:(exam.syllabus?.trim() ? "var(--accent3)" : "var(--accent2)")+"22", color:exam.syllabus?.trim() ? "var(--accent3)" : "var(--accent2)"}}>
+                          {exam.syllabus?.trim() ? "Saved" : "Add syllabus"}
+                        </span>
                       </div>
-                      <span className={`badge ${exam.syllabus?.trim() ? "syllabus-badge-filled" : ""}`} style={{background:(exam.syllabus?.trim() ? "var(--accent3)" : "var(--accent2)")+"22", color:exam.syllabus?.trim() ? "var(--accent3)" : "var(--accent2)"}}>
-                        {exam.syllabus?.trim() ? "Saved" : "Add syllabus"}
-                      </span>
-                    </div>
-                    <div className="syllabus-preview">
-                      {exam.syllabus?.trim() ? exam.syllabus.trim() : "No syllabus saved yet for this exam."}
-                    </div>
-                  </button>
-                ))}
+                      <div className="syllabus-preview">
+                        {exam.syllabus?.trim() ? exam.syllabus.trim() : "No syllabus saved yet for this exam."}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
+            ))
+          )
+        ) : (
+          sortedExams.length === 0 ? (
+            <EmptyState icon={icons.layers} message="Add an exam first, then you can upload and attach a syllabus to it here." action={()=>setPage("exams")} actionLabel="Open Exams"/>
+          ) : (
+            <div className="syllabus-upload-card">
+              <div className="planner-head">
+                <div>
+                  <div className="planner-eyebrow">Attach a file</div>
+                  <div className="planner-title">Upload exam syllabus</div>
+                </div>
+                {syllabusUploadExam?.syllabus?.trim() && <span className="task-topic-pill">Current syllabus saved</span>}
+              </div>
+              <div className="planner-sub">Choose an exam, then upload a text syllabus file. Markd will save it directly onto that exam so it is easy to reopen later.</div>
+              <Field label="Exam">
+                <select className="modal-input" value={syllabusUploadExamId} onChange={event => { setSyllabusUploadExamId(event.target.value); setSyllabusUploadNotice(null); }}>
+                  <option value="">Select exam</option>
+                  {sortedExams.map(exam => (
+                    <option key={exam.id} value={exam.id}>
+                      {exam.name} · {subName(exam.subjectId)} · {fmtDate(exam.date)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <label className={`syllabus-upload-dropzone ${syllabusUploadExamId ? "ready" : ""}`}>
+                <input
+                  className="syllabus-upload-input"
+                  type="file"
+                  accept=".txt,.md,.markdown,.csv,text/plain,text/markdown,text/csv"
+                  onChange={handleSyllabusUpload}
+                />
+                <span className="syllabus-upload-title">Upload a syllabus file</span>
+                <span className="syllabus-upload-copy">Supports plain text, markdown, and CSV exports for now.</span>
+              </label>
+              {syllabusUploadNotice && (
+                <div className={`syllabus-upload-status ${syllabusUploadNotice.tone}`}>
+                  {syllabusUploadNotice.message}
+                </div>
+              )}
+              {syllabusUploadExam && (
+                <div className="exam-ai-placeholder">
+                  <div className="exam-ai-placeholder-title">{syllabusUploadExam.name}</div>
+                  <div className="exam-ai-placeholder-copy">
+                    {syllabusUploadExam.syllabus?.trim()
+                      ? "This exam already has a saved syllabus. Uploading another file will replace it."
+                      : "No syllabus saved yet for this exam. You can also open the exam card and paste the syllabus manually."}
+                  </div>
+                </div>
+              )}
             </div>
-          ))
+          )
         )}
       </div>
     );
@@ -3666,7 +3784,7 @@ export default function Markd() {
 
     return (
       <div className="modal-overlay" onClick={()=>setModal(null)}>
-        <div className="modal-sheet" onClick={e=>e.stopPropagation()}>
+        <div className={`modal-sheet ${modal==="examSyllabus" ? "modal-sheet-wide" : ""}`} onClick={e=>e.stopPropagation()}>
           <div className="modal-handle"/>
           <div className="modal-title">{title}</div>
           <div className="modal-body">{content}</div>
@@ -3839,6 +3957,7 @@ export default function Markd() {
         .exam-days { font-family:'Syne',sans-serif; font-weight:800; font-size:34px; text-align:center; line-height:1; }
         .exam-days-label { display:block; font-size:10px; font-weight:400; color:var(--muted); margin-top:2px; }
         .syllabus-hero-card { margin-bottom:16px; }
+        .syllabus-tab-row { margin-bottom:16px; }
         .syllabus-subject-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px; margin-bottom:14px; transition:transform 200ms var(--ease-out), border-color 200ms var(--ease-out), box-shadow 200ms var(--ease-out); }
         @media (hover:hover) and (pointer:fine) { .syllabus-subject-card:hover { transform:translateY(-4px); border-color:rgba(124,106,247,0.28); box-shadow:0 16px 28px rgba(0,0,0,0.16); } }
         .syllabus-subject-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
@@ -3850,12 +3969,22 @@ export default function Markd() {
         .syllabus-exam-name { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; }
         .syllabus-exam-meta { font-size:11px; color:var(--muted); margin-top:4px; }
         .syllabus-preview { font-size:12px; color:var(--muted); line-height:1.6; white-space:pre-wrap; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+        .syllabus-upload-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:14px; }
+        .syllabus-upload-dropzone { position:relative; display:flex; flex-direction:column; gap:8px; align-items:flex-start; justify-content:center; min-height:150px; padding:18px; border-radius:16px; border:1px dashed rgba(124,106,247,0.3); background:linear-gradient(135deg, rgba(124,106,247,0.08), rgba(106,247,196,0.04)); cursor:pointer; transition:transform 180ms var(--ease-out), border-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out); }
+        .syllabus-upload-dropzone.ready { border-color:rgba(106,247,196,0.35); }
+        @media (hover:hover) and (pointer:fine) { .syllabus-upload-dropzone:hover { transform:translateY(-2px); border-color:rgba(124,106,247,0.45); box-shadow:0 16px 28px rgba(0,0,0,0.14); } }
+        .syllabus-upload-input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+        .syllabus-upload-title { font-family:'Syne',sans-serif; font-size:18px; font-weight:700; }
+        .syllabus-upload-copy { font-size:12px; color:var(--muted); line-height:1.6; max-width:520px; }
+        .syllabus-upload-status { border-radius:12px; padding:12px 14px; font-size:12px; line-height:1.6; }
+        .syllabus-upload-status.success { background:rgba(106,247,196,0.1); border:1px solid rgba(106,247,196,0.24); color:var(--accent3); }
+        .syllabus-upload-status.error { background:rgba(247,106,106,0.1); border:1px solid rgba(247,106,106,0.22); color:var(--danger); }
         .exam-syllabus-header-card { background:var(--surface2); border:1px solid var(--border); border-radius:14px; padding:14px; }
         .exam-syllabus-header-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
         .exam-syllabus-subject { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; }
         .exam-syllabus-meta { font-size:11px; color:var(--muted); margin-top:4px; }
         .exam-syllabus-helper { font-size:11px; color:var(--muted); line-height:1.6; }
-        .exam-syllabus-input { min-height:220px; white-space:pre-wrap; }
+        .exam-syllabus-input { min-height:300px; white-space:pre-wrap; }
         .exam-ai-placeholder { background:linear-gradient(135deg, rgba(124,106,247,0.1), rgba(247,162,106,0.08)); border:1px solid rgba(124,106,247,0.18); border-radius:14px; padding:14px; }
         .exam-ai-placeholder-title { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; margin-bottom:8px; }
         .exam-ai-placeholder-copy { font-size:11px; color:var(--muted); line-height:1.6; }
@@ -3974,6 +4103,7 @@ export default function Markd() {
         .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; display:flex; align-items:flex-end; justify-content:center; animation:fadeIn 180ms var(--ease-out); }
         @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
         .modal-sheet { width:100%; max-width:600px; background:var(--surface); border-radius:20px 20px 0 0; padding:12px 20px 28px; animation:slideUp 320ms var(--ease-drawer); }
+        .modal-sheet-wide { max-width:760px; }
         .health-intro-dialog { width:calc(100% - 40px); max-width:440px; background:var(--surface); border:1px solid var(--border); border-radius:22px; padding:22px 20px 20px; box-shadow:0 24px 48px rgba(0,0,0,0.28); animation:scaleIn 0.2s ease; }
         .health-intro-badge { display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px; background:rgba(124,106,247,0.12); color:var(--accent); font-size:10px; text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; }
         .health-intro-title { font-family:'Syne',sans-serif; font-size:22px; font-weight:700; line-height:1.15; margin-bottom:10px; }

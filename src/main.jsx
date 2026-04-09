@@ -1,10 +1,20 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
+import { AuthProvider } from './firebase/AuthContext.jsx'
+import JoinPage from './pages/JoinPage.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/join" element={<JoinPage />} />
+          <Route path="*" element={<App />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   </StrictMode>,
 )
